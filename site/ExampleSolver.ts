@@ -48,7 +48,10 @@ export class ExampleSolver extends BaseSolver {
       this.bestDistance = testDistance
     } else {
       // Random walk with probability based on temperature
-      const temperature = Math.max(0.1, 1.0 - (this.iterations / this.MAX_ITERATIONS))
+      const temperature = Math.max(
+        0.1,
+        1.0 - this.iterations / this.MAX_ITERATIONS,
+      )
       if (Math.random() < temperature * 0.1) {
         this.currentPosition = testPosition
       }
@@ -58,7 +61,7 @@ export class ExampleSolver extends BaseSolver {
     this.stats = {
       currentDistance: this.calculateTotalDistance(this.currentPosition),
       bestDistance: this.bestDistance,
-      temperature: Math.max(0.1, 1.0 - (this.iterations / this.MAX_ITERATIONS)),
+      temperature: Math.max(0.1, 1.0 - this.iterations / this.MAX_ITERATIONS),
       stepSize: this.step_size,
     }
 
@@ -89,22 +92,20 @@ export class ExampleSolver extends BaseSolver {
     }
 
     // Draw target points
-    this.targetPoints.forEach((target) => {
+    for (const target of this.targetPoints) {
       graphics.points!.push({
         x: target.x,
         y: target.y,
         color: "red",
-        size: 8,
         label: target.label,
       })
-    })
+    }
 
     // Draw current position
     graphics.points!.push({
       x: this.currentPosition.x,
       y: this.currentPosition.y,
       color: this.solved ? "green" : "blue",
-      size: 12,
       label: `Current (${this.currentPosition.x.toFixed(1)}, ${this.currentPosition.y.toFixed(1)})`,
     })
 
@@ -117,23 +118,27 @@ export class ExampleSolver extends BaseSolver {
         x: this.bestPosition.x,
         y: this.bestPosition.y,
         color: "orange",
-        size: 10,
         label: `Best (${this.bestPosition.x.toFixed(1)}, ${this.bestPosition.y.toFixed(1)})`,
       })
     }
 
     // Draw lines from current position to all targets
-    this.targetPoints.forEach((target) => {
+    for (const target of this.targetPoints) {
       graphics.lines!.push({
-        x1: this.currentPosition.x,
-        y1: this.currentPosition.y,
-        x2: target.x,
-        y2: target.y,
-        color: "gray",
+        points: [
+          {
+            x: this.currentPosition.x,
+            y: this.currentPosition.y,
+          },
+          {
+            x: target.x,
+            y: target.y,
+          },
+        ],
+        strokeColor: "gray",
         strokeWidth: 1,
-        opacity: 0.3,
       })
-    })
+    }
 
     // Add status text
     graphics.texts!.push({

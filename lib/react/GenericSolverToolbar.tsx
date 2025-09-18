@@ -70,13 +70,9 @@ export const GenericSolverToolbar = ({
 
   const handleNextStage = () => {
     const pipelineSolver = solver as BasePipelineSolver<any>
-    if (
-      pipelineSolver.getCurrentPhase &&
-      !solver.solved &&
-      !solver.failed
-    ) {
+    if (pipelineSolver.getCurrentPhase && !solver.solved && !solver.failed) {
       const initialPhase = pipelineSolver.getCurrentPhase()
-      
+
       // Step until we get to a different phase or solve/fail
       while (
         pipelineSolver.getCurrentPhase() === initialPhase &&
@@ -184,9 +180,7 @@ export const GenericSolverToolbar = ({
       </div>
 
       {solver.error && (
-        <div className="text-red-600 text-sm">
-          Error: {solver.error}
-        </div>
+        <div className="text-red-600 text-sm">Error: {solver.error}</div>
       )}
     </div>
   )

@@ -1,4 +1,4 @@
-import React, { useMemo, useReducer } from "react"
+import React, { useEffect, useMemo, useReducer } from "react"
 import type { BaseSolver } from "../BaseSolver"
 import { InteractiveGraphics } from "graphics-debug/react"
 import { GenericSolverToolbar } from "./GenericSolverToolbar"
@@ -20,7 +20,9 @@ export const GenericSolverDebugger = ({
 
   const visualization = useMemo(() => {
     try {
-      return solver.visualize() || { points: [], lines: [], rects: [], circles: [] }
+      return (
+        solver.visualize() || { points: [], lines: [], rects: [], circles: [] }
+      )
     } catch (error) {
       console.error("Visualization error:", error)
       return { points: [], lines: [], rects: [], circles: [] }
@@ -35,6 +37,19 @@ export const GenericSolverDebugger = ({
       (visualization.circles?.length || 0) === 0,
     [visualization],
   )
+
+  useEffect(() => {
+    if (typeof document === "undefined") return
+    if (
+      !document.querySelector(
+        'script[src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"]',
+      )
+    ) {
+      const script = document.createElement("script")
+      script.src = "https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"
+      document.head.appendChild(script)
+    }
+  }, [])
 
   return (
     <div>
