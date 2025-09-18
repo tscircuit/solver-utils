@@ -1,10 +1,13 @@
 import type { GraphicsObject } from "graphics-debug"
 import { BaseSolver } from "./BaseSolver"
 
-export interface PipelineStep<T extends BaseSolver> {
+export interface PipelineStep<
+  T extends BaseSolver = BaseSolver,
+  P = any,
+> {
   solverName: string
-  solverClass: new (...args: any[]) => T
-  getConstructorParams: (pipelineInstance: any) => any[]
+  solverClass: new (params: P) => T
+  getConstructorParams: (pipelineInstance: any) => P
   onSolved?: (pipelineInstance: any) => void
 }
 
@@ -15,11 +18,11 @@ export function definePipelineStep<
 >(
   solverName: string,
   solverClass: new (params: P) => T,
-  getConstructorParams: (instance: Instance) => [P],
+  getConstructorParams: (instance: Instance) => P,
   opts: {
     onSolved?: (instance: Instance) => void
   } = {},
-): PipelineStep<T> {
+): PipelineStep<T, P> {
   return {
     solverName,
     solverClass,
@@ -40,7 +43,7 @@ export abstract class BasePipelineSolver<TInput> extends BaseSolver {
   /** Stores the outputs from each completed pipeline step */
   pipelineOutputs: Record<string, any> = {}
 
-  abstract pipelineDef: PipelineStep<any>[]
+  abstract pipelineDef: PipelineStep<any, any>[]
 
   constructor(inputProblem: TInput) {
     super()
@@ -81,7 +84,7 @@ export abstract class BasePipelineSolver<TInput> extends BaseSolver {
     }
 
     const constructorParams = pipelineStepDef.getConstructorParams(this)
-    this.activeSubSolver = new pipelineStepDef.solverClass(...constructorParams)
+    this.activeSubSolver = new pipelineStepDef.solverClass(constructorParams)
     ;(this as any)[pipelineStepDef.solverName] = this.activeSubSolver
     this.timeSpentOnPhase[pipelineStepDef.solverName] = 0
     this.startTimeOfPhase[pipelineStepDef.solverName] = performance.now()

@@ -1,30 +1,37 @@
-import React, { useEffect, useMemo, useReducer } from "react"
+import React, { useMemo, useReducer } from "react"
+import type { BasePipelineSolver } from "../BasePipelineSolver"
 import type { BaseSolver } from "../BaseSolver"
 import { InteractiveGraphics } from "graphics-debug/react"
 import { GenericSolverToolbar } from "./GenericSolverToolbar"
+import { PipelineStageTable } from "./PipelineStageTable"
 import type { DownloadTemplateOverrides } from "./DownloadDropdown"
 
-export interface GenericSolverDebuggerProps {
-  solver: BaseSolver
+export interface PipelineDebuggerProps {
+  solver: BasePipelineSolver<any>
   animationSpeed?: number
   onSolverStarted?: (solver: BaseSolver) => void
   onSolverCompleted?: (solver: BaseSolver) => void
   downloadOverrides?: DownloadTemplateOverrides
 }
 
-export const GenericSolverDebugger = ({
+export const PipelineDebugger: React.FC<PipelineDebuggerProps> = ({
   solver,
   animationSpeed = 25,
   onSolverStarted,
   onSolverCompleted,
   downloadOverrides,
-}: GenericSolverDebuggerProps) => {
+}) => {
   const [renderCount, incRenderCount] = useReducer((x) => x + 1, 0)
 
   const visualization = useMemo(() => {
     try {
       return (
-        solver.visualize() || { points: [], lines: [], rects: [], circles: [] }
+        solver.visualize() || {
+          points: [],
+          lines: [],
+          rects: [],
+          circles: [],
+        }
       )
     } catch (error) {
       console.error("Visualization error:", error)
@@ -41,19 +48,6 @@ export const GenericSolverDebugger = ({
     [visualization],
   )
 
-  useEffect(() => {
-    if (typeof document === "undefined") return
-    if (
-      !document.querySelector(
-        'script[src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"]',
-      )
-    ) {
-      const script = document.createElement("script")
-      script.src = "https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"
-      document.head.appendChild(script)
-    }
-  }, [])
-
   return (
     <div>
       <GenericSolverToolbar
@@ -69,6 +63,10 @@ export const GenericSolverDebugger = ({
       ) : (
         <InteractiveGraphics graphics={visualization} />
       )}
+      <PipelineStageTable
+        pipelineSolver={solver}
+        triggerRender={() => incRenderCount()}
+      />
     </div>
   )
 }

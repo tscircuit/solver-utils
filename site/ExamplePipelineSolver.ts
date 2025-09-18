@@ -12,6 +12,11 @@ interface OptimizationProblem {
   initialY: number
 }
 
+interface FinePositioningParams {
+  problem: OptimizationProblem
+  startPosition: { x: number; y: number }
+}
+
 /**
  * First stage: Rough positioning using large steps
  */
@@ -20,7 +25,7 @@ class CoarsePositioningSolver extends BaseSolver {
   private currentY: number
   private stepSize = 5.0
 
-  constructor(private problem: OptimizationProblem) {
+  constructor(private readonly problem: OptimizationProblem) {
     super()
     this.currentX = problem.initialX
     this.currentY = problem.initialY
@@ -101,7 +106,7 @@ class CoarsePositioningSolver extends BaseSolver {
   }
 
   override getConstructorParams() {
-    return [this.problem]
+    return this.problem
   }
 
   getFinalPosition() {
@@ -116,14 +121,13 @@ class FinePositioningSolver extends BaseSolver {
   private currentX: number
   private currentY: number
   private stepSize = 0.5
+  private readonly problem: OptimizationProblem
 
-  constructor(
-    private problem: OptimizationProblem,
-    startPosition: { x: number; y: number },
-  ) {
+  constructor(private readonly params: FinePositioningParams) {
     super()
-    this.currentX = startPosition.x
-    this.currentY = startPosition.y
+    this.problem = params.problem
+    this.currentX = params.startPosition.x
+    this.currentY = params.startPosition.y
     this.MAX_ITERATIONS = 100
   }
 
@@ -217,7 +221,7 @@ class FinePositioningSolver extends BaseSolver {
   }
 
   override getConstructorParams() {
-    return [this.problem, { x: this.currentX, y: this.currentY }]
+    return this.params
   }
 }
 
@@ -232,7 +236,7 @@ export class ExamplePipelineSolver extends BasePipelineSolver<OptimizationProble
     definePipelineStep(
       "coarsePositioningSolver",
       CoarsePositioningSolver,
-      (instance) => [instance.inputProblem],
+      (instance) => instance.inputProblem,
       {
         onSolved: (instance) => {
           console.log("Coarse positioning completed")
@@ -242,14 +246,14 @@ export class ExamplePipelineSolver extends BasePipelineSolver<OptimizationProble
     definePipelineStep(
       "finePositioningSolver",
       FinePositioningSolver,
-      (instance) => [
-        instance.inputProblem,
-        instance
+      (instance) => ({
+        problem: instance.inputProblem,
+        startPosition: instance
           .getSolver<CoarsePositioningSolver>("coarsePositioningSolver")!
           .getFinalPosition(),
-      ],
+      }),
       {
-        onSolved: (instance) => {
+        onSolved: () => {
           console.log("Fine positioning completed - pipeline solved!")
         },
       },
@@ -257,6 +261,6 @@ export class ExamplePipelineSolver extends BasePipelineSolver<OptimizationProble
   ]
 
   override getConstructorParams() {
-    return [this.inputProblem]
+    return this.inputProblem
   }
 }

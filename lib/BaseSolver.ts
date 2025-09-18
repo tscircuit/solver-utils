@@ -8,8 +8,9 @@ import type { GraphicsObject } from "graphics-debug"
  * Solvers should override visualize() to return a GraphicsObject representing
  * the current state of the solver.
  *
- * Solvers should override getConstructorParams() to return the parameters
- * needed to construct the solver.
+ * Solvers should override getConstructorParams() to return the object passed as
+ * the first (and only) constructor parameter. This keeps constructor
+ * signatures serializable for tooling like the download dropdowns.
  */
 export class BaseSolver {
   MAX_ITERATIONS = 100e3
