@@ -1,10 +1,13 @@
 {
   "name": "@tscircuit/solver-utils",
-  "module": "index.ts",
+  "main": "dist/index.js",
+  "files": [
+    "dist"
+  ],
   "type": "module",
   "scripts": {
     "start": "cosmos",
-    "build": "tsup",
+    "build": "tsup-node ./lib/index.ts --format esm --dts && tsup-node ./lib/react/index.ts --format esm --dts",
     "build:site": "cosmos-export"
   },
   "devDependencies": {

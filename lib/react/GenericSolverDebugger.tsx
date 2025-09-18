@@ -20,7 +20,6 @@ export const GenericSolverDebugger = ({
 
   const visualization = useMemo(() => {
     try {
-      console.log("Visualizing solver:", solver)
       return (
         solver.visualize() || { points: [], lines: [], rects: [], circles: [] }
       )
