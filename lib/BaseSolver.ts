@@ -1,4 +1,4 @@
-import { GraphicsObject } from "graphics-debug"
+import type { GraphicsObject } from "graphics-debug"
 
 /**
  * A base class for solvers implementing the standard solve() interface.

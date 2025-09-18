@@ -219,4 +219,11 @@ export abstract class BasePipelineSolver<TInput> extends BaseSolver {
   hasStepOutput(stepName: string): boolean {
     return stepName in this.pipelineOutputs
   }
+
+  /**
+   * Get a solver instance by name
+   */
+  getSolver<T extends BaseSolver>(stepName: string): T | undefined {
+    return (this as any)[stepName] as T | undefined
+  }
 }

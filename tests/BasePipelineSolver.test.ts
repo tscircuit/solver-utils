@@ -105,7 +105,7 @@ class TestPipelineSolver extends BasePipelineSolver<TestInputProblem> {
     definePipelineStep(
       "stepOneSolver",
       StepOneSolver,
-      (instance) => instance.inputProblem,
+      (instance) => [instance.inputProblem],
       {
         onSolved: (instance) => {
           console.log(
@@ -118,8 +118,10 @@ class TestPipelineSolver extends BasePipelineSolver<TestInputProblem> {
       "stepTwoSolver",
       StepTwoSolver,
       (instance) => [
-        instance.getSolver<StepOneSolver>("stepOneSolver")!.result,
-        instance.inputProblem.targetValue,
+        {
+          startValue: instance.getSolver<StepOneSolver>("stepOneSolver")!.result,
+          target: instance.inputProblem.targetValue,
+        },
       ],
       {
         onSolved: (instance) => {
@@ -288,13 +290,13 @@ test("BasePipelineSolver phase statistics", () => {
   expect(stats).toHaveProperty("stepTwoSolver")
   expect(stats).toHaveProperty("stepThreeSolver")
 
-  expect(stats.stepOneSolver.completed).toBe(true)
-  expect(stats.stepTwoSolver.completed).toBe(true)
-  expect(stats.stepThreeSolver.completed).toBe(true)
+  expect(stats.stepOneSolver?.completed).toBe(true)
+  expect(stats.stepTwoSolver?.completed).toBe(true)
+  expect(stats.stepThreeSolver?.completed).toBe(true)
 
-  expect(stats.stepOneSolver.timeSpent).toBeGreaterThan(0)
-  expect(stats.stepTwoSolver.timeSpent).toBeGreaterThan(0)
-  expect(stats.stepThreeSolver.timeSpent).toBeGreaterThan(0)
+  expect(stats.stepOneSolver?.timeSpent).toBeGreaterThan(0)
+  expect(stats.stepTwoSolver?.timeSpent).toBeGreaterThan(0)
+  expect(stats.stepThreeSolver?.timeSpent).toBeGreaterThan(0)
 })
 
 test("BasePipelineSolver visualization", () => {
@@ -323,6 +325,10 @@ test("BasePipelineSolver visualization", () => {
 
 test("BasePipelineSolver error handling", () => {
   class FailingSolver extends BaseSolver {
+    constructor(_params?: any) {
+      super()
+    }
+
     override _step() {
       throw new Error("Intentional test error")
     }
@@ -331,7 +337,7 @@ test("BasePipelineSolver error handling", () => {
   class FailingPipelineSolver extends BasePipelineSolver<TestInputProblem> {
     failingSolver?: FailingSolver
 
-    pipelineDef = [definePipelineStep("failingSolver", FailingSolver, () => [])]
+    pipelineDef = [definePipelineStep("failingSolver", FailingSolver, () => [undefined])]
 
     override getConstructorParams() {
       return [this.inputProblem]
