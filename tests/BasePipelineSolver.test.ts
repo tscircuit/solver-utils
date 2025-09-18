@@ -14,7 +14,7 @@ interface TestInputProblem {
 class StepOneSolver extends BaseSolver {
   result: number
 
-  constructor(private input: TestInputProblem) {
+  constructor(private readonly input: TestInputProblem) {
     super()
     this.result = input.initialValue
   }
@@ -34,22 +34,25 @@ class StepOneSolver extends BaseSolver {
       circles: [],
     }
   }
+
+  override getConstructorParams() {
+    return this.input
+  }
 }
 
 class StepTwoSolver extends BaseSolver {
   result: number
   target: number
 
-  constructor({
-    startValue,
-    target,
-  }: {
-    startValue: number
-    target: number
-  }) {
+  constructor(
+    private readonly params: {
+      startValue: number
+      target: number
+    },
+  ) {
     super()
-    this.target = target
-    this.result = startValue
+    this.target = params.target
+    this.result = params.startValue
   }
 
   override _step() {
@@ -67,14 +70,18 @@ class StepTwoSolver extends BaseSolver {
       circles: [],
     }
   }
+
+  override getConstructorParams() {
+    return this.params
+  }
 }
 
 class StepThreeSolver extends BaseSolver {
   result: number
 
-  constructor(private startValue: number) {
+  constructor(private readonly params: { startValue: number }) {
     super()
-    this.result = startValue
+    this.result = params.startValue
   }
 
   override _step() {
@@ -92,6 +99,10 @@ class StepThreeSolver extends BaseSolver {
       circles: [],
     }
   }
+
+  override getConstructorParams() {
+    return this.params
+  }
 }
 
 class TestPipelineSolver extends BasePipelineSolver<TestInputProblem> {
@@ -105,7 +116,7 @@ class TestPipelineSolver extends BasePipelineSolver<TestInputProblem> {
     definePipelineStep(
       "stepOneSolver",
       StepOneSolver,
-      (instance) => [instance.inputProblem],
+      (instance) => instance.inputProblem,
       {
         onSolved: (instance) => {
           console.log(
@@ -117,12 +128,10 @@ class TestPipelineSolver extends BasePipelineSolver<TestInputProblem> {
     definePipelineStep(
       "stepTwoSolver",
       StepTwoSolver,
-      (instance) => [
-        {
-          startValue: instance.getSolver<StepOneSolver>("stepOneSolver")!.result,
-          target: instance.inputProblem.targetValue,
-        },
-      ],
+      (instance) => ({
+        startValue: instance.getSolver<StepOneSolver>("stepOneSolver")!.result,
+        target: instance.inputProblem.targetValue,
+      }),
       {
         onSolved: (instance) => {
           console.log(
@@ -134,9 +143,9 @@ class TestPipelineSolver extends BasePipelineSolver<TestInputProblem> {
     definePipelineStep(
       "stepThreeSolver",
       StepThreeSolver,
-      (instance) => [
-        instance.getSolver<StepTwoSolver>("stepTwoSolver")!.result,
-      ],
+      (instance) => ({
+        startValue: instance.getSolver<StepTwoSolver>("stepTwoSolver")!.result,
+      }),
       {
         onSolved: (instance) => {
           ;(instance as any).finalResult =
@@ -150,7 +159,7 @@ class TestPipelineSolver extends BasePipelineSolver<TestInputProblem> {
   ]
 
   override getConstructorParams() {
-    return [this.inputProblem]
+    return this.inputProblem
   }
 }
 
@@ -337,10 +346,12 @@ test("BasePipelineSolver error handling", () => {
   class FailingPipelineSolver extends BasePipelineSolver<TestInputProblem> {
     failingSolver?: FailingSolver
 
-    pipelineDef = [definePipelineStep("failingSolver", FailingSolver, () => [undefined])]
+    pipelineDef = [
+      definePipelineStep("failingSolver", FailingSolver, () => undefined),
+    ]
 
     override getConstructorParams() {
-      return [this.inputProblem]
+      return this.inputProblem
     }
   }
 

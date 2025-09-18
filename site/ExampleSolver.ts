@@ -1,6 +1,12 @@
 import { BaseSolver } from "../lib/BaseSolver"
 import type { GraphicsObject } from "graphics-debug"
 
+export interface ExampleSolverParams {
+  targetPoints: { x: number; y: number; label: string }[]
+  initialPosition: { x: number; y: number }
+  initialStepSize: number
+}
+
 /**
  * Example solver that demonstrates a simple optimization problem:
  * Finding the optimal position for a point that minimizes distance to a set of target points
@@ -10,33 +16,34 @@ export class ExampleSolver extends BaseSolver {
   private targetPoints: { x: number; y: number; label: string }[]
   private bestPosition: { x: number; y: number }
   private bestDistance: number
-  private step_size: number
+  private stepSize: number
+  private readonly params: ExampleSolverParams
 
-  constructor() {
+  constructor(params: ExampleSolverParams) {
     super()
     this.MAX_ITERATIONS = 1000
+    this.params = {
+      initialPosition: { ...params.initialPosition },
+      initialStepSize: params.initialStepSize,
+      targetPoints: params.targetPoints.map((point) => ({ ...point })),
+    }
 
-    // Initialize with some target points
-    this.targetPoints = [
-      { x: 10, y: 5, label: "Target A" },
-      { x: -5, y: 8, label: "Target B" },
-      { x: 3, y: -10, label: "Target C" },
-      { x: -8, y: -3, label: "Target D" },
-    ]
+    // Initialize with provided target points
+    this.targetPoints = this.params.targetPoints.map((point) => ({ ...point }))
 
-    // Start at origin
-    this.currentPosition = { x: 0, y: 0 }
-    this.bestPosition = { x: 0, y: 0 }
+    // Start at provided origin
+    this.currentPosition = { ...this.params.initialPosition }
+    this.bestPosition = { ...this.currentPosition }
     this.bestDistance = this.calculateTotalDistance(this.currentPosition)
-    this.step_size = 2.0
+    this.stepSize = this.params.initialStepSize
   }
 
   override _step() {
     // Try small perturbations in random directions
     const angle = Math.random() * 2 * Math.PI
     const testPosition = {
-      x: this.currentPosition.x + Math.cos(angle) * this.step_size,
-      y: this.currentPosition.y + Math.sin(angle) * this.step_size,
+      x: this.currentPosition.x + Math.cos(angle) * this.stepSize,
+      y: this.currentPosition.y + Math.sin(angle) * this.stepSize,
     }
 
     const testDistance = this.calculateTotalDistance(testPosition)
@@ -62,11 +69,11 @@ export class ExampleSolver extends BaseSolver {
       currentDistance: this.calculateTotalDistance(this.currentPosition),
       bestDistance: this.bestDistance,
       temperature: Math.max(0.1, 1.0 - this.iterations / this.MAX_ITERATIONS),
-      stepSize: this.step_size,
+      stepSize: this.stepSize,
     }
 
     // Gradually reduce step size
-    this.step_size *= 0.999
+    this.stepSize *= 0.999
 
     // Check for convergence
     if (this.iterations > 100 && this.bestDistance < 0.1) {
@@ -171,6 +178,19 @@ export class ExampleSolver extends BaseSolver {
   }
 
   override getConstructorParams() {
-    return []
+    return this.params
+  }
+
+  static createDefaultParams(): ExampleSolverParams {
+    return {
+      targetPoints: [
+        { x: 10, y: 5, label: "Target A" },
+        { x: -5, y: 8, label: "Target B" },
+        { x: 3, y: -10, label: "Target C" },
+        { x: -8, y: -3, label: "Target D" },
+      ],
+      initialPosition: { x: 0, y: 0 },
+      initialStepSize: 2.0,
+    }
   }
 }

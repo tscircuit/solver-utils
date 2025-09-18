@@ -11,7 +11,10 @@ import { ExampleSolver } from "./ExampleSolver"
  */
 export default function ExampleSolverDemo() {
   // Create a new instance of our example solver
-  const solver = useMemo(() => new ExampleSolver(), [])
+  const solver = useMemo(
+    () => new ExampleSolver(ExampleSolver.createDefaultParams()),
+    [],
+  )
 
   return (
     <GenericSolverDebugger

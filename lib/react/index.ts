@@ -1,2 +1,6 @@
 export * from "./GenericSolverDebugger"
 export * from "./GenericSolverToolbar"
+export * from "./DownloadDropdown"
+export * from "./SolverBreadcrumbInputDownloader"
+export * from "./PipelineStageTable"
+export * from "./PipelineDebugger"

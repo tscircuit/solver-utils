@@ -1,5 +1,5 @@
 import React, { useMemo } from "react"
-import { GenericSolverDebugger } from "../lib/react/GenericSolverDebugger"
+import { PipelineDebugger } from "../lib/react/PipelineDebugger"
 import { ExamplePipelineSolver } from "./ExamplePipelineSolver"
 
 /**
@@ -22,7 +22,7 @@ export default function PipelineSolverDemo() {
   )
 
   return (
-    <GenericSolverDebugger
+    <PipelineDebugger
       solver={solver}
       animationSpeed={100}
       onSolverStarted={(solver) => {
@@ -30,7 +30,9 @@ export default function PipelineSolverDemo() {
       }}
       onSolverCompleted={(solver) => {
         console.log("Pipeline solver completed:", solver)
-        console.log("Phase statistics:", (solver as any).getPhaseStats())
+        if (solver instanceof ExamplePipelineSolver) {
+          console.log("Phase statistics:", solver.getPhaseStats())
+        }
       }}
     />
   )

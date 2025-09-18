@@ -1,6 +1,8 @@
 import React, { useReducer, useRef, useEffect } from "react"
 import type { BaseSolver } from "../BaseSolver"
 import type { BasePipelineSolver } from "../BasePipelineSolver"
+import { SolverBreadcrumbInputDownloader } from "./SolverBreadcrumbInputDownloader"
+import type { DownloadTemplateOverrides } from "./DownloadDropdown"
 
 export interface GenericSolverToolbarProps {
   solver: BaseSolver
@@ -8,6 +10,7 @@ export interface GenericSolverToolbarProps {
   animationSpeed?: number
   onSolverStarted?: (solver: BaseSolver) => void
   onSolverCompleted?: (solver: BaseSolver) => void
+  downloadOverrides?: DownloadTemplateOverrides
 }
 
 export const GenericSolverToolbar = ({
@@ -16,6 +19,7 @@ export const GenericSolverToolbar = ({
   animationSpeed = 25,
   onSolverStarted,
   onSolverCompleted,
+  downloadOverrides,
 }: GenericSolverToolbarProps) => {
   const [isAnimating, setIsAnimating] = useReducer((x) => !x, false)
   const animationRef = useRef<NodeJS.Timeout | undefined>(undefined)
@@ -111,6 +115,11 @@ export const GenericSolverToolbar = ({
 
   return (
     <div className="space-y-2 p-2 border-b">
+      <SolverBreadcrumbInputDownloader
+        solver={solver}
+        overrides={downloadOverrides}
+      />
+
       <div className="flex gap-2 items-center flex-wrap">
         <button
           onClick={handleStep}
