@@ -93,7 +93,7 @@ test("BaseSolver visualization", () => {
 
 test("BaseSolver max iterations protection", () => {
   class InfiniteSolver extends BaseSolver {
-    MAX_ITERATIONS = 5
+    override MAX_ITERATIONS = 5
 
     override _step() {
       // Never set solved = true

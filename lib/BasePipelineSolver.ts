@@ -10,12 +10,12 @@ export interface PipelineStep<T extends BaseSolver> {
 
 export function definePipelineStep<
   T extends BaseSolver,
-  P,
+  Params extends any[],
   Instance extends BasePipelineSolver<any>,
 >(
   solverName: string,
-  solverClass: new (params: P) => T,
-  getConstructorParams: (instance: Instance) => [P],
+  solverClass: new (...params: Params) => T,
+  getConstructorParams: (instance: Instance) => any[],
   opts: {
     onSolved?: (instance: Instance) => void
   } = {},

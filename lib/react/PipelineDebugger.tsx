@@ -1,25 +1,27 @@
 import React, { useEffect, useMemo, useReducer } from "react"
-import type { BaseSolver } from "../BaseSolver"
 import { InteractiveGraphics } from "graphics-debug/react"
+import type { BasePipelineSolver } from "../BasePipelineSolver"
+import type { BaseSolver } from "../BaseSolver"
 import type { DownloadGenerators } from "./DownloadDropdown"
+import { PipelineStageTable } from "./PipelineStageTable"
 import { GenericSolverToolbar } from "./GenericSolverToolbar"
 
-export interface GenericSolverDebuggerProps {
-  solver: BaseSolver
+export interface PipelineDebuggerProps {
+  solver: BasePipelineSolver<any>
   animationSpeed?: number
   onSolverStarted?: (solver: BaseSolver) => void
   onSolverCompleted?: (solver: BaseSolver) => void
   downloadGenerators?: DownloadGenerators
 }
 
-export const GenericSolverDebugger = ({
+export const PipelineDebugger = ({
   solver,
-  animationSpeed = 25,
+  animationSpeed,
   onSolverStarted,
   onSolverCompleted,
   downloadGenerators,
-}: GenericSolverDebuggerProps) => {
-  const [renderCount, incRenderCount] = useReducer((x) => x + 1, 0)
+}: PipelineDebuggerProps) => {
+  const [renderCount, incRenderCount] = useReducer((x: number) => x + 1, 0)
 
   const visualization = useMemo(() => {
     try {
@@ -69,6 +71,10 @@ export const GenericSolverDebugger = ({
       ) : (
         <InteractiveGraphics graphics={visualization} />
       )}
+      <PipelineStageTable
+        pipelineSolver={solver}
+        triggerRender={incRenderCount}
+      />
     </div>
   )
 }
