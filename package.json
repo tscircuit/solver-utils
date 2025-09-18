@@ -1,14 +1,20 @@
 {
   "name": "@tscircuit/solver-utils",
   "main": "dist/index.js",
+  "version": "0.0.1",
   "files": [
     "dist"
   ],
+  "exports": {
+    ".": "./dist/index.js",
+    "./react": "./dist/react/index.js"
+  },
   "type": "module",
   "scripts": {
     "start": "cosmos",
-    "build": "tsup-node ./lib/index.ts --format esm --dts && tsup-node ./lib/react/index.ts --format esm --dts",
-    "build:site": "cosmos-export"
+    "build": "tsup-node ./lib/index.ts --format esm --dts && tsup-node ./lib/react/index.ts --format esm --dts -d dist/react",
+    "build:site": "cosmos-export",
+    "format": "biome format --write ."
   },
   "devDependencies": {
     "@biomejs/biome": "^2.2.4",
