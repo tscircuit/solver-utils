@@ -1,5 +1,8 @@
 import { test, expect } from "bun:test"
-import { BasePipelineSolver, definePipelineStep } from "../lib/BasePipelineSolver"
+import {
+  BasePipelineSolver,
+  definePipelineStep,
+} from "../lib/BasePipelineSolver"
 import { BaseSolver } from "../lib/BaseSolver"
 import type { GraphicsObject } from "graphics-debug"
 
@@ -35,9 +38,17 @@ class StepOneSolver extends BaseSolver {
 
 class StepTwoSolver extends BaseSolver {
   result: number
+  target: number
 
-  constructor(private startValue: number, private target: number) {
+  constructor({
+    startValue,
+    target,
+  }: {
+    startValue: number
+    target: number
+  }) {
     super()
+    this.target = target
     this.result = startValue
   }
 
@@ -88,16 +99,18 @@ class TestPipelineSolver extends BasePipelineSolver<TestInputProblem> {
   stepTwoSolver?: StepTwoSolver
   stepThreeSolver?: StepThreeSolver
 
-  finalResult: number = 0
+  finalResult = 0
 
   pipelineDef = [
     definePipelineStep(
       "stepOneSolver",
       StepOneSolver,
-      (instance) => [instance.inputProblem],
+      (instance) => instance.inputProblem,
       {
         onSolved: (instance) => {
-          console.log(`Step 1 completed with result: ${instance.getSolver<StepOneSolver>("stepOneSolver")!.result}`)
+          console.log(
+            `Step 1 completed with result: ${instance.getSolver<StepOneSolver>("stepOneSolver")!.result}`,
+          )
         },
       },
     ),
@@ -106,22 +119,29 @@ class TestPipelineSolver extends BasePipelineSolver<TestInputProblem> {
       StepTwoSolver,
       (instance) => [
         instance.getSolver<StepOneSolver>("stepOneSolver")!.result,
-        instance.inputProblem.targetValue
+        instance.inputProblem.targetValue,
       ],
       {
         onSolved: (instance) => {
-          console.log(`Step 2 completed with result: ${instance.getSolver<StepTwoSolver>("stepTwoSolver")!.result}`)
+          console.log(
+            `Step 2 completed with result: ${instance.getSolver<StepTwoSolver>("stepTwoSolver")!.result}`,
+          )
         },
       },
     ),
     definePipelineStep(
       "stepThreeSolver",
       StepThreeSolver,
-      (instance) => [instance.getSolver<StepTwoSolver>("stepTwoSolver")!.result],
+      (instance) => [
+        instance.getSolver<StepTwoSolver>("stepTwoSolver")!.result,
+      ],
       {
         onSolved: (instance) => {
-          (instance as any).finalResult = instance.getSolver<StepThreeSolver>("stepThreeSolver")!.result
-          console.log(`Pipeline completed with final result: ${(instance as any).finalResult}`)
+          ;(instance as any).finalResult =
+            instance.getSolver<StepThreeSolver>("stepThreeSolver")!.result
+          console.log(
+            `Pipeline completed with final result: ${(instance as any).finalResult}`,
+          )
         },
       },
     ),
@@ -135,7 +155,7 @@ class TestPipelineSolver extends BasePipelineSolver<TestInputProblem> {
 test("BasePipelineSolver extension basic functionality", () => {
   const input: TestInputProblem = {
     targetValue: 20,
-    initialValue: 0
+    initialValue: 0,
   }
 
   const pipeline = new TestPipelineSolver(input)
@@ -150,7 +170,7 @@ test("BasePipelineSolver extension basic functionality", () => {
 test("BasePipelineSolver step-by-step execution", () => {
   const input: TestInputProblem = {
     targetValue: 20,
-    initialValue: 0
+    initialValue: 0,
   }
 
   const pipeline = new TestPipelineSolver(input)
@@ -161,7 +181,9 @@ test("BasePipelineSolver step-by-step execution", () => {
   // First step should create the first solver
   pipeline.step()
   expect(pipeline.activeSubSolver).toBeInstanceOf(StepOneSolver)
-  expect(pipeline.getSolver<StepOneSolver>("stepOneSolver")).toBeInstanceOf(StepOneSolver)
+  expect(pipeline.getSolver<StepOneSolver>("stepOneSolver")).toBeInstanceOf(
+    StepOneSolver,
+  )
   expect(pipeline.getCurrentPhase()).toBe("stepOneSolver")
 
   // Continue until first step is done
@@ -170,18 +192,22 @@ test("BasePipelineSolver step-by-step execution", () => {
   }
 
   expect(pipeline.getSolver<StepOneSolver>("stepOneSolver")!.solved).toBe(true)
-  expect(pipeline.getSolver<StepOneSolver>("stepOneSolver")!.result).toBeGreaterThanOrEqual(10)
+  expect(
+    pipeline.getSolver<StepOneSolver>("stepOneSolver")!.result,
+  ).toBeGreaterThanOrEqual(10)
   expect(pipeline.getCurrentPhase()).toBe("stepTwoSolver")
 
   // Take one more step to instantiate the second solver
   pipeline.step()
-  expect(pipeline.getSolver<StepTwoSolver>("stepTwoSolver")).toBeInstanceOf(StepTwoSolver)
+  expect(pipeline.getSolver<StepTwoSolver>("stepTwoSolver")).toBeInstanceOf(
+    StepTwoSolver,
+  )
 })
 
 test("BasePipelineSolver full pipeline execution", () => {
   const input: TestInputProblem = {
     targetValue: 20,
-    initialValue: 0
+    initialValue: 0,
   }
 
   const pipeline = new TestPipelineSolver(input)
@@ -195,13 +221,15 @@ test("BasePipelineSolver full pipeline execution", () => {
   // All sub-solvers should be solved (using type-safe accessor)
   expect(pipeline.getSolver<StepOneSolver>("stepOneSolver")!.solved).toBe(true)
   expect(pipeline.getSolver<StepTwoSolver>("stepTwoSolver")!.solved).toBe(true)
-  expect(pipeline.getSolver<StepThreeSolver>("stepThreeSolver")!.solved).toBe(true)
+  expect(pipeline.getSolver<StepThreeSolver>("stepThreeSolver")!.solved).toBe(
+    true,
+  )
 })
 
 test("BasePipelineSolver solveUntilPhase", () => {
   const input: TestInputProblem = {
     targetValue: 20,
-    initialValue: 0
+    initialValue: 0,
   }
 
   const pipeline = new TestPipelineSolver(input)
@@ -216,13 +244,15 @@ test("BasePipelineSolver solveUntilPhase", () => {
 
   // Take one step to instantiate the second solver
   pipeline.step()
-  expect(pipeline.getSolver<StepTwoSolver>("stepTwoSolver")).toBeInstanceOf(StepTwoSolver)
+  expect(pipeline.getSolver<StepTwoSolver>("stepTwoSolver")).toBeInstanceOf(
+    StepTwoSolver,
+  )
 })
 
 test("BasePipelineSolver phase progress tracking", () => {
   const input: TestInputProblem = {
     targetValue: 20,
-    initialValue: 0
+    initialValue: 0,
   }
 
   const pipeline = new TestPipelineSolver(input)
@@ -246,7 +276,7 @@ test("BasePipelineSolver phase progress tracking", () => {
 test("BasePipelineSolver phase statistics", () => {
   const input: TestInputProblem = {
     targetValue: 20,
-    initialValue: 0
+    initialValue: 0,
   }
 
   const pipeline = new TestPipelineSolver(input)
@@ -270,7 +300,7 @@ test("BasePipelineSolver phase statistics", () => {
 test("BasePipelineSolver visualization", () => {
   const input: TestInputProblem = {
     targetValue: 20,
-    initialValue: 0
+    initialValue: 0,
   }
 
   const pipeline = new TestPipelineSolver(input)
@@ -282,9 +312,9 @@ test("BasePipelineSolver visualization", () => {
   expect(viz.points!.length).toBeGreaterThan(0)
 
   // Should have points from all three solvers
-  const step0Points = viz.points!.filter(p => p.step === 0)
-  const step1Points = viz.points!.filter(p => p.step === 1)
-  const step2Points = viz.points!.filter(p => p.step === 2)
+  const step0Points = viz.points!.filter((p) => p.step === 0)
+  const step1Points = viz.points!.filter((p) => p.step === 1)
+  const step2Points = viz.points!.filter((p) => p.step === 2)
 
   expect(step0Points.length).toBeGreaterThan(0)
   expect(step1Points.length).toBeGreaterThan(0)
@@ -301,13 +331,7 @@ test("BasePipelineSolver error handling", () => {
   class FailingPipelineSolver extends BasePipelineSolver<TestInputProblem> {
     failingSolver?: FailingSolver
 
-    pipelineDef = [
-      definePipelineStep(
-        "failingSolver",
-        FailingSolver,
-        () => [],
-      ),
-    ]
+    pipelineDef = [definePipelineStep("failingSolver", FailingSolver, () => [])]
 
     override getConstructorParams() {
       return [this.inputProblem]
@@ -325,7 +349,7 @@ test("BasePipelineSolver error handling", () => {
 test("BasePipelineSolver preview method", () => {
   const input: TestInputProblem = {
     targetValue: 20,
-    initialValue: 0
+    initialValue: 0,
   }
 
   const pipeline = new TestPipelineSolver(input)

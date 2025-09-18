@@ -10,12 +10,12 @@ export interface PipelineStep<T extends BaseSolver> {
 
 export function definePipelineStep<
   T extends BaseSolver,
-  P extends any[],
-  Instance extends BasePipelineSolver<any>
+  P,
+  Instance extends BasePipelineSolver<any>,
 >(
   solverName: string,
-  solverClass: new (...args: P) => T,
-  getConstructorParams: (instance: Instance) => P,
+  solverClass: new (params: P) => T,
+  getConstructorParams: (instance: Instance) => [P],
   opts: {
     onSolved?: (instance: Instance) => void
   } = {},
@@ -107,26 +107,32 @@ export abstract class BasePipelineSolver<TInput> extends BaseSolver {
     return (this.currentPipelineStepIndex + currentPhaseProgress) / totalPhases
   }
 
-  getPhaseStats(): Record<string, {
-    timeSpent: number
-    iterations: number
-    completed: boolean
-  }> {
+  getPhaseStats(): Record<
+    string,
+    {
+      timeSpent: number
+      iterations: number
+      completed: boolean
+    }
+  > {
     const stats: Record<string, any> = {}
 
     for (const step of this.pipelineDef) {
       const timeSpent = this.timeSpentOnPhase[step.solverName] || 0
       const firstIteration = this.firstIterationOfPhase[step.solverName] || 0
       const currentIteration = this.iterations
-      const iterations = step.solverName === this.getCurrentPhase()
-        ? currentIteration - firstIteration
-        : 0
-      const completed = this.currentPipelineStepIndex > this.pipelineDef.findIndex(s => s.solverName === step.solverName)
+      const iterations =
+        step.solverName === this.getCurrentPhase()
+          ? currentIteration - firstIteration
+          : 0
+      const completed =
+        this.currentPipelineStepIndex >
+        this.pipelineDef.findIndex((s) => s.solverName === step.solverName)
 
       stats[step.solverName] = {
         timeSpent,
         iterations,
-        completed
+        completed,
       }
     }
 
@@ -212,13 +218,5 @@ export abstract class BasePipelineSolver<TInput> extends BaseSolver {
    */
   hasStepOutput(stepName: string): boolean {
     return stepName in this.pipelineOutputs
-  }
-
-  /**
-   * Get a solver instance by name (type assertion required)
-   * Use this when you need to access solver-specific properties
-   */
-  getSolver<T extends BaseSolver>(stepName: string): T | undefined {
-    return (this as any)[stepName]
   }
 }
