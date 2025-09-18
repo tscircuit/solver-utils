@@ -16,10 +16,11 @@ export const GenericSolverDebugger = ({
   onSolverStarted,
   onSolverCompleted,
 }: GenericSolverDebuggerProps) => {
-  const [, incRenderCount] = useReducer((x) => x + 1, 0)
+  const [renderCount, incRenderCount] = useReducer((x) => x + 1, 0)
 
   const visualization = useMemo(() => {
     try {
+      console.log("Visualizing solver:", solver)
       return (
         solver.visualize() || { points: [], lines: [], rects: [], circles: [] }
       )
@@ -27,7 +28,7 @@ export const GenericSolverDebugger = ({
       console.error("Visualization error:", error)
       return { points: [], lines: [], rects: [], circles: [] }
     }
-  }, [solver, incRenderCount])
+  }, [solver, renderCount])
 
   const graphicsAreEmpty = useMemo(
     () =>

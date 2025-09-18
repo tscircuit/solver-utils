@@ -1,4 +1,7 @@
-import { BasePipelineSolver, definePipelineStep } from "../lib/BasePipelineSolver"
+import {
+  BasePipelineSolver,
+  definePipelineStep,
+} from "../lib/BasePipelineSolver"
 import { BaseSolver } from "../lib/BaseSolver"
 import type { GraphicsObject } from "graphics-debug"
 
@@ -57,26 +60,23 @@ class CoarsePositioningSolver extends BaseSolver {
           x: this.problem.targetX,
           y: this.problem.targetY,
           color: "red",
-          size: 10,
           label: "Target",
         },
         {
           x: this.currentX,
           y: this.currentY,
           color: "blue",
-          size: 8,
           label: `Coarse (${this.currentX.toFixed(1)}, ${this.currentY.toFixed(1)})`,
         },
       ],
       lines: [
         {
-          x1: this.currentX,
-          y1: this.currentY,
-          x2: this.problem.targetX,
-          y2: this.problem.targetY,
-          color: "blue",
+          points: [
+            { x: this.currentX, y: this.currentY },
+            { x: this.problem.targetX, y: this.problem.targetY },
+          ],
+          strokeColor: "blue",
           strokeWidth: 2,
-          opacity: 0.5,
         },
       ],
       texts: [
@@ -170,26 +170,29 @@ class FinePositioningSolver extends BaseSolver {
           x: this.problem.targetX,
           y: this.problem.targetY,
           color: "red",
-          size: 10,
           label: "Target",
         },
         {
           x: this.currentX,
           y: this.currentY,
           color: "green",
-          size: 8,
           label: `Fine (${this.currentX.toFixed(2)}, ${this.currentY.toFixed(2)})`,
         },
       ],
       lines: [
         {
-          x1: this.currentX,
-          y1: this.currentY,
-          x2: this.problem.targetX,
-          y2: this.problem.targetY,
-          color: "green",
+          points: [
+            {
+              x: this.currentX,
+              y: this.currentY,
+            },
+            {
+              x: this.problem.targetX,
+              y: this.problem.targetY,
+            },
+          ],
+          strokeColor: "green",
           strokeWidth: 1,
-          opacity: 0.7,
         },
       ],
       texts: [
@@ -241,7 +244,9 @@ export class ExamplePipelineSolver extends BasePipelineSolver<OptimizationProble
       FinePositioningSolver,
       (instance) => [
         instance.inputProblem,
-        instance.getSolver<CoarsePositioningSolver>("coarsePositioningSolver")!.getFinalPosition(),
+        instance
+          .getSolver<CoarsePositioningSolver>("coarsePositioningSolver")!
+          .getFinalPosition(),
       ],
       {
         onSolved: (instance) => {
