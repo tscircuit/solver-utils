@@ -1,6 +1,7 @@
 import React, { useReducer, useRef, useEffect } from "react"
 import type { BaseSolver } from "../BaseSolver"
 import type { BasePipelineSolver } from "../BasePipelineSolver"
+import { SolverBreadcrumbInputDownloader } from "./SolverBreadcrumbInputDownloader"
 
 export interface GenericSolverToolbarProps {
   solver: BaseSolver
@@ -111,6 +112,8 @@ export const GenericSolverToolbar = ({
 
   return (
     <div className="space-y-2 p-2 border-b">
+      <SolverBreadcrumbInputDownloader solver={solver} />
+
       <div className="flex gap-2 items-center flex-wrap">
         <button
           onClick={handleStep}

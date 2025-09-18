@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useReducer } from "react"
+import type { ReactNode } from "react"
 import type { BaseSolver } from "../BaseSolver"
 import { InteractiveGraphics } from "graphics-debug/react"
 import { GenericSolverToolbar } from "./GenericSolverToolbar"
@@ -8,6 +9,10 @@ export interface GenericSolverDebuggerProps {
   animationSpeed?: number
   onSolverStarted?: (solver: BaseSolver) => void
   onSolverCompleted?: (solver: BaseSolver) => void
+  renderBelowVisualizer?: (args: {
+    solver: BaseSolver
+    triggerRender: () => void
+  }) => ReactNode
 }
 
 export const GenericSolverDebugger = ({
@@ -15,6 +20,7 @@ export const GenericSolverDebugger = ({
   animationSpeed = 25,
   onSolverStarted,
   onSolverCompleted,
+  renderBelowVisualizer,
 }: GenericSolverDebuggerProps) => {
   const [renderCount, incRenderCount] = useReducer((x) => x + 1, 0)
 
@@ -65,6 +71,7 @@ export const GenericSolverDebugger = ({
       ) : (
         <InteractiveGraphics graphics={visualization} />
       )}
+      {renderBelowVisualizer?.({ solver, triggerRender: incRenderCount })}
     </div>
   )
 }
