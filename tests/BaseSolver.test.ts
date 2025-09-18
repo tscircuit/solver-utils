@@ -1,5 +1,5 @@
 import { test, expect } from "bun:test"
-import { BaseSolver } from "./BaseSolver"
+import { BaseSolver } from "../lib/BaseSolver"
 
 class TestSolver extends BaseSolver {
   target = 10
