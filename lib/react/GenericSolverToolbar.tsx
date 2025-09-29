@@ -1,6 +1,7 @@
 import React, { useReducer, useRef, useEffect } from "react"
 import type { BaseSolver } from "../BaseSolver"
 import type { BasePipelineSolver } from "../BasePipelineSolver"
+import { SolverBreadcrumbInputDownloader } from "./SolverBreadcrumbInputDownloader"
 
 export interface GenericSolverToolbarProps {
   solver: BaseSolver
@@ -177,6 +178,9 @@ export const GenericSolverToolbar = ({
             Failed
           </div>
         )}
+        <div className="ml-auto">
+          <SolverBreadcrumbInputDownloader solver={solver} />
+        </div>
       </div>
 
       {solver.error && (

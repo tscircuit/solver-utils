@@ -1,5 +1,5 @@
 import React, { useMemo } from "react"
-import { SolverBreadcrumbInputDownloader } from "../lib/react/SolverBreadcrumbInputDownloader"
+import { GenericSolverDebugger } from "../lib/react/GenericSolverDebugger"
 import { BaseSolver } from "../lib/BaseSolver"
 import type { GraphicsObject } from "graphics-debug"
 
@@ -120,13 +120,15 @@ export default function SolverBreadcrumbsDemo() {
   }, [])
 
   return (
-    <div className="p-4 space-y-4">
-      <h2 className="text-lg font-semibold">Solver Breadcrumbs Demo</h2>
-      <p className="text-sm text-gray-600">
-        Click on each breadcrumb to open a dropdown and download data for that
-        solver.
-      </p>
-      <SolverBreadcrumbInputDownloader solver={solver} />
-    </div>
+    <GenericSolverDebugger
+      solver={solver}
+      animationSpeed={100}
+      onSolverStarted={(solver) => {
+        console.log("Breadcrumb demo solver started:", solver)
+      }}
+      onSolverCompleted={(solver) => {
+        console.log("Breadcrumb demo solver completed:", solver)
+      }}
+    />
   )
 }
