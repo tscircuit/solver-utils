@@ -94,18 +94,33 @@ export const DownloadDropdown = ({ solver }: { solver: BaseSolver }) => {
         onClick={() => setOpen((v) => !v)}
         title={`Download data for ${solverName}`}
       >
-        {solverName} ▼
+        <span className="inline-flex items-center gap-1">
+          <span>{solverName}</span>
+          <svg
+            className={`h-3 w-3 transition-transform ${open ? "rotate-180" : ""}`}
+            viewBox="0 0 20 20"
+            fill="currentColor"
+            aria-hidden="true"
+            focusable="false"
+          >
+            <path
+              fillRule="evenodd"
+              d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.24a.75.75 0 01-1.06 0L5.21 8.29a.75.75 0 01.02-1.08z"
+              clipRule="evenodd"
+            />
+          </svg>
+        </span>
       </button>
       {open && (
         <div
           ref={menuRef}
-          className="absolute z-10 mt-1 w-56 rounded-md border bg-white shadow-lg"
+          className="absolute z-10 mt-1 w-full rounded-md border bg-white shadow-lg overflow-hidden"
           role="menu"
           aria-label={`${solverName} menu`}
         >
-          <div className="py-1 text-sm">
+          <div className="py-0 text-xs flex flex-col divide-y divide-gray-200">
             <button
-              className="w-full text-left px-3 py-2 hover:bg-gray-100"
+              className="w-full text-left px-2 py-0.5 hover:bg-gray-100"
               role="menuitem"
               tabIndex={-1}
               onClick={() => handleDownload("params")}
@@ -113,7 +128,7 @@ export const DownloadDropdown = ({ solver }: { solver: BaseSolver }) => {
               Download constructor params (JSON)
             </button>
             <button
-              className="w-full text-left px-3 py-2 hover:bg-gray-100"
+              className="w-full text-left px-2 py-0.5 hover:bg-gray-100"
               role="menuitem"
               tabIndex={-1}
               onClick={() => handleDownload("visualization")}
@@ -121,7 +136,7 @@ export const DownloadDropdown = ({ solver }: { solver: BaseSolver }) => {
               Download visualization (JSON)
             </button>
             <button
-              className="w-full text-left px-3 py-2 hover:bg-gray-100"
+              className="w-full text-left px-2 py-0.5 hover:bg-gray-100"
               role="menuitem"
               tabIndex={-1}
               onClick={() => handleDownload("preview")}
@@ -129,7 +144,7 @@ export const DownloadDropdown = ({ solver }: { solver: BaseSolver }) => {
               Download preview (JSON)
             </button>
             <button
-              className="w-full text-left px-3 py-2 hover:bg-gray-100"
+              className="w-full text-left px-2 py-0.5 hover:bg-gray-100"
               role="menuitem"
               tabIndex={-1}
               onClick={() => handleDownload("stats")}
