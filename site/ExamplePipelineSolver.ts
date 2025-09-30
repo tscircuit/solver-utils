@@ -116,14 +116,16 @@ class FinePositioningSolver extends BaseSolver {
   private currentX: number
   private currentY: number
   private stepSize = 0.5
+  private problem: OptimizationProblem
 
-  constructor(
-    private problem: OptimizationProblem,
-    startPosition: { x: number; y: number },
-  ) {
+  constructor(params: {
+    problem: OptimizationProblem
+    startPosition: { x: number; y: number }
+  }) {
     super()
-    this.currentX = startPosition.x
-    this.currentY = startPosition.y
+    this.problem = params.problem
+    this.currentX = params.startPosition.x
+    this.currentY = params.startPosition.y
     this.MAX_ITERATIONS = 100
   }
 
@@ -217,7 +219,12 @@ class FinePositioningSolver extends BaseSolver {
   }
 
   override getConstructorParams() {
-    return [this.problem, { x: this.currentX, y: this.currentY }]
+    return [
+      {
+        problem: this.problem,
+        startPosition: { x: this.currentX, y: this.currentY },
+      },
+    ]
   }
 }
 
@@ -243,10 +250,12 @@ export class ExamplePipelineSolver extends BasePipelineSolver<OptimizationProble
       "finePositioningSolver",
       FinePositioningSolver,
       (instance) => [
-        instance.inputProblem,
-        instance
-          .getSolver<CoarsePositioningSolver>("coarsePositioningSolver")!
-          .getFinalPosition(),
+        {
+          problem: instance.inputProblem,
+          startPosition: instance
+            .getSolver<CoarsePositioningSolver>("coarsePositioningSolver")!
+            .getFinalPosition(),
+        },
       ],
       {
         onSolved: (instance) => {

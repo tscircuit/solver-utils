@@ -119,7 +119,8 @@ class TestPipelineSolver extends BasePipelineSolver<TestInputProblem> {
       StepTwoSolver,
       (instance) => [
         {
-          startValue: instance.getSolver<StepOneSolver>("stepOneSolver")!.result,
+          startValue:
+            instance.getSolver<StepOneSolver>("stepOneSolver")!.result,
           target: instance.inputProblem.targetValue,
         },
       ],
@@ -337,7 +338,9 @@ test("BasePipelineSolver error handling", () => {
   class FailingPipelineSolver extends BasePipelineSolver<TestInputProblem> {
     failingSolver?: FailingSolver
 
-    pipelineDef = [definePipelineStep("failingSolver", FailingSolver, () => [undefined])]
+    pipelineDef = [
+      definePipelineStep("failingSolver", FailingSolver, () => [undefined]),
+    ]
 
     override getConstructorParams() {
       return [this.inputProblem]
