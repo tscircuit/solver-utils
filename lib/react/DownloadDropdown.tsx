@@ -1,157 +1,197 @@
-import React, { useEffect, useRef, useState } from "react"
+import { useState, useRef, useEffect } from "react"
 import type { BaseSolver } from "../BaseSolver"
 
-const downloadJSON = (filename: string, data: any) => {
-  const json = JSON.stringify(data, null, 2)
-  const blob = new Blob([json], { type: "application/json" })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement("a")
-  a.href = url
-  a.download = filename
-  document.body.appendChild(a)
-  a.click()
-  a.remove()
-  URL.revokeObjectURL(url)
+interface DownloadDropdownProps {
+  solver: BaseSolver
+  className?: string
 }
 
-const timestamp = () =>
-  new Date().toISOString().replace(/[:.]/g, "-").replace("T", "_").slice(0, 19)
+const deepRemoveUnderscoreProperties = (obj: any): any => {
+  if (obj === null || typeof obj !== "object") {
+    return obj
+  }
 
-export const DownloadDropdown = ({ solver }: { solver: BaseSolver }) => {
-  const [open, setOpen] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
-  const menuRef = useRef<HTMLDivElement>(null)
+  if (Array.isArray(obj)) {
+    return obj.map(deepRemoveUnderscoreProperties)
+  }
+
+  const result: any = {}
+  for (const [key, value] of Object.entries(obj)) {
+    if (!key.startsWith("_")) {
+      result[key] = deepRemoveUnderscoreProperties(value)
+    }
+  }
+  return result
+}
+
+export const DownloadDropdown = ({
+  solver,
+  className = "",
+}: DownloadDropdownProps) => {
+  const [isOpen, setIsOpen] = useState(false)
+  const dropdownRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    const onDocClick = (e: MouseEvent) => {
-      if (!ref.current) return
-      if (!ref.current.contains(e.target as Node)) {
-        setOpen(false)
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target as Node)
+      ) {
+        setIsOpen(false)
       }
     }
-    document.addEventListener("mousedown", onDocClick)
-    return () => document.removeEventListener("mousedown", onDocClick)
+
+    document.addEventListener("mousedown", handleClickOutside)
+    return () => document.removeEventListener("mousedown", handleClickOutside)
   }, [])
 
-  useEffect(() => {
-    if (!open) return
-    // Focus first menu item when opening
-    const t = requestAnimationFrame(() => {
-      const first = menuRef.current?.querySelector("button")
-      if (first instanceof HTMLButtonElement) first.focus()
-    })
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        setOpen(false)
-      }
-    }
-    document.addEventListener("keydown", onKey)
-    return () => {
-      cancelAnimationFrame(t)
-      document.removeEventListener("keydown", onKey)
-    }
-  }, [open])
-
-  const solverName = solver.constructor.name
-
-  const handleDownload = (
-    kind: "params" | "visualization" | "preview" | "stats",
-  ) => {
-    let data: any
+  const downloadJSON = () => {
     try {
-      if (kind === "params") {
-        data = { constructorParams: solver.getConstructorParams() }
-      } else if (kind === "visualization") {
-        data = solver.visualize()
-      } else if (kind === "preview") {
-        data = solver.preview()
-      } else {
-        data = {
-          stats: solver.stats,
-          iterations: solver.iterations,
-          solved: solver.solved,
-          failed: solver.failed,
-          error: solver.error ?? undefined,
-          timeToSolve: solver.timeToSolve ?? undefined,
-        }
+      if (typeof solver.getConstructorParams !== "function") {
+        alert(
+          `getConstructorParams() is not implemented for ${solver.constructor.name}`,
+        )
+        return
       }
-    } catch (e) {
-      data = { error: String(e) }
-    }
 
-    const fname = `${solverName}.${kind}.${timestamp()}.json`
-    downloadJSON(fname, data)
-    setOpen(false)
+      const params = deepRemoveUnderscoreProperties(
+        solver.getConstructorParams(),
+      )
+      const blob = new Blob([JSON.stringify(params, null, 2)], {
+        type: "application/json",
+      })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = `${solver.constructor.name}_params.json`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (error) {
+      alert(
+        `Error downloading params for ${solver.constructor.name}: ${error instanceof Error ? error.message : String(error)}`,
+      )
+    }
+    setIsOpen(false)
+  }
+
+  const downloadPageTsx = () => {
+    try {
+      const params = deepRemoveUnderscoreProperties(
+        solver.getConstructorParams(),
+      )
+      const solverName = solver.constructor.name
+      const isSchematicTracePipelineSolver =
+        solverName === "SchematicTracePipelineSolver"
+
+      let content: string
+
+      if (isSchematicTracePipelineSolver) {
+        content = `import { PipelineDebugger } from "site/components/PipelineDebugger"
+import type { InputProblem } from "lib/types/InputProblem"
+
+const inputProblem: InputProblem = ${JSON.stringify(params, null, 2)}
+
+export default () => <PipelineDebugger inputProblem={inputProblem} />
+`
+      } else {
+        content = `import { useMemo } from "react"
+import { GenericSolverDebugger } from "../components/GenericSolverDebugger"
+import { ${solverName} } from "lib/solvers/${solverName}/${solverName}"
+
+export const inputProblem = ${JSON.stringify(params, null, 2)}
+
+export default () => {
+  const solver = useMemo(() => {
+    return new ${solverName}(inputProblem as any)
+  }, [])
+  return <GenericSolverDebugger solver={solver} />
+}
+`
+      }
+
+      const blob = new Blob([content], { type: "text/plain" })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = `${solverName}.page.tsx`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (error) {
+      alert(
+        `Error generating page.tsx for ${solver.constructor.name}: ${error instanceof Error ? error.message : String(error)}`,
+      )
+    }
+    setIsOpen(false)
+  }
+
+  const downloadTestTs = () => {
+    try {
+      const params = deepRemoveUnderscoreProperties(
+        solver.getConstructorParams(),
+      )
+      const solverName = solver.constructor.name
+
+      const content = `import { ${solverName} } from "lib/solvers/${solverName}/${solverName}"
+import { test, expect } from "bun:test"
+
+test("${solverName} should solve problem correctly", () => {
+  const input = ${JSON.stringify(params, null, 2)}
+  
+  const solver = new ${solverName}(input as any)
+  solver.solve()
+
+  expect(solver).toMatchSolverSnapshot(import.meta.path)
+  
+  // Add more specific assertions based on expected output
+  // expect(solver.netLabelPlacementSolver!.netLabelPlacements).toMatchInlineSnapshot()
+})
+`
+
+      const blob = new Blob([content], { type: "text/plain" })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = `${solverName}.test.ts`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (error) {
+      alert(
+        `Error generating test.ts for ${solver.constructor.name}: ${error instanceof Error ? error.message : String(error)}`,
+      )
+    }
+    setIsOpen(false)
   }
 
   return (
-    <div ref={ref} className="relative inline-block">
+    <div className={`relative ${className}`} ref={dropdownRef}>
       <button
-        type="button"
-        className="bg-gray-500 hover:bg-gray-600 text-white px-3 py-1 rounded text-sm"
-        aria-haspopup="menu"
-        aria-expanded={open}
-        onClick={() => setOpen((v) => !v)}
-        title={`Download data for ${solverName}`}
+        className="px-2 py-1 rounded text-xs cursor-pointer"
+        onClick={() => setIsOpen(!isOpen)}
+        title={`Download options for ${solver.constructor.name}`}
       >
-        <span className="inline-flex items-center gap-1">
-          <span>{solverName}</span>
-          <svg
-            className={`h-3 w-3 transition-transform ${open ? "rotate-180" : ""}`}
-            viewBox="0 0 20 20"
-            fill="currentColor"
-            aria-hidden="true"
-            focusable="false"
-          >
-            <path
-              fillRule="evenodd"
-              d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.24a.75.75 0 01-1.06 0L5.21 8.29a.75.75 0 01.02-1.08z"
-              clipRule="evenodd"
-            />
-          </svg>
-        </span>
+        {solver.constructor.name}
       </button>
-      {open && (
-        <div
-          ref={menuRef}
-          className="absolute z-10 mt-1 w-full rounded-md border bg-white shadow-lg overflow-hidden"
-          role="menu"
-          aria-label={`${solverName} menu`}
-        >
-          <div className="py-0 text-xs flex flex-col divide-y divide-gray-200">
-            <button
-              className="w-full text-left px-2 py-0.5 hover:bg-gray-100"
-              role="menuitem"
-              tabIndex={-1}
-              onClick={() => handleDownload("params")}
-            >
-              Download constructor params (JSON)
-            </button>
-            <button
-              className="w-full text-left px-2 py-0.5 hover:bg-gray-100"
-              role="menuitem"
-              tabIndex={-1}
-              onClick={() => handleDownload("visualization")}
-            >
-              Download visualization (JSON)
-            </button>
-            <button
-              className="w-full text-left px-2 py-0.5 hover:bg-gray-100"
-              role="menuitem"
-              tabIndex={-1}
-              onClick={() => handleDownload("preview")}
-            >
-              Download preview (JSON)
-            </button>
-            <button
-              className="w-full text-left px-2 py-0.5 hover:bg-gray-100"
-              role="menuitem"
-              tabIndex={-1}
-              onClick={() => handleDownload("stats")}
-            >
-              Download stats (JSON)
-            </button>
-          </div>
+
+      {isOpen && (
+        <div className="absolute top-full left-0 mt-1 bg-white border border-gray-300 rounded shadow-lg z-10 min-w-[150px]">
+          <button
+            className="w-full text-left px-3 py-2 hover:bg-gray-100 text-xs"
+            onClick={downloadJSON}
+          >
+            Download JSON
+          </button>
+          <button
+            className="w-full text-left px-3 py-2 hover:bg-gray-100 text-xs"
+            onClick={downloadPageTsx}
+          >
+            Download page.tsx
+          </button>
+          <button
+            className="w-full text-left px-3 py-2 hover:bg-gray-100 text-xs"
+            onClick={downloadTestTs}
+          >
+            Download test.ts
+          </button>
         </div>
       )}
     </div>

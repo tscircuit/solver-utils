@@ -112,6 +112,9 @@ export const GenericSolverToolbar = ({
 
   return (
     <div className="space-y-2 p-2 border-b">
+      <div className="flex items-center">
+        <SolverBreadcrumbInputDownloader solver={solver} />
+      </div>
       <div className="flex gap-2 items-center flex-wrap">
         <button
           onClick={handleStep}
@@ -178,9 +181,6 @@ export const GenericSolverToolbar = ({
             Failed
           </div>
         )}
-        <div className="ml-auto">
-          <SolverBreadcrumbInputDownloader solver={solver} />
-        </div>
       </div>
 
       {solver.error && (
