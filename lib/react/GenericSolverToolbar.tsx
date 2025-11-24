@@ -86,6 +86,38 @@ export const GenericSolverToolbar = ({
     }
   }
 
+  const handleStepUntilIteration = () => {
+    if (solver.solved || solver.failed || isAnimating) return
+
+    const targetIterationInput = window.prompt(
+      "Step until which iteration?",
+      `${solver.iterations}`,
+    )
+
+    if (targetIterationInput === null) return
+
+    const targetIteration = Number(targetIterationInput)
+
+    if (!Number.isFinite(targetIteration)) {
+      window.alert("Please enter a valid number for the iteration")
+      return
+    }
+
+    while (
+      solver.iterations < targetIteration &&
+      !solver.solved &&
+      !solver.failed
+    ) {
+      solver.step()
+    }
+
+    triggerRender()
+
+    if (solver.solved && onSolverCompleted) {
+      onSolverCompleted(solver)
+    }
+  }
+
   // Cleanup animation on unmount or solver completion
   useEffect(() => {
     return () => {
@@ -142,6 +174,14 @@ export const GenericSolverToolbar = ({
           } disabled:bg-gray-300`}
         >
           {isAnimating ? "Stop" : "Animate"}
+        </button>
+
+        <button
+          onClick={handleStepUntilIteration}
+          disabled={solver.solved || solver.failed || isAnimating}
+          className="bg-orange-500 hover:bg-orange-600 disabled:bg-gray-300 text-white px-3 py-1 rounded text-sm"
+        >
+          Step Until Iteration
         </button>
 
         {isPipelineSolver && (
