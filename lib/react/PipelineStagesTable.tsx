@@ -1,0 +1,325 @@
+import React from "react"
+import type { BasePipelineSolver } from "../BasePipelineSolver"
+import type { BaseSolver } from "../BaseSolver"
+
+interface PipelineStagesTableProps {
+  solver: BasePipelineSolver<any>
+  onStepUntilPhase?: (phaseName: string) => void
+  onDownloadInput?: (solver: BaseSolver, stepName: string) => void
+}
+
+type StepStatus = "Not Started" | "In Progress" | "Completed" | "Failed"
+
+interface StepInfo {
+  index: number
+  name: string
+  status: StepStatus
+  firstIteration: number | null
+  iterations: number
+  progress: number
+  timeSpent: number
+  stats: Record<string, any> | null
+  solverInstance: BaseSolver | null
+}
+
+const getStepStatus = (
+  solver: BasePipelineSolver<any>,
+  stepIndex: number,
+  stepName: string,
+): StepStatus => {
+  const currentIndex = solver.currentPipelineStepIndex
+
+  if (stepIndex < currentIndex) {
+    return "Completed"
+  }
+
+  if (stepIndex === currentIndex) {
+    if (solver.activeSubSolver) {
+      if (solver.activeSubSolver.failed) {
+        return "Failed"
+      }
+      return "In Progress"
+    }
+    return "Not Started"
+  }
+
+  return "Not Started"
+}
+
+const getStepInfo = (
+  solver: BasePipelineSolver<any>,
+  stepIndex: number,
+): StepInfo => {
+  const step = solver.pipelineDef[stepIndex]!
+  const stepName = step.solverName
+  const status = getStepStatus(solver, stepIndex, stepName)
+  const solverInstance = (solver as any)[stepName] as BaseSolver | undefined
+
+  const firstIteration = solver.firstIterationOfPhase[stepName] ?? null
+  const currentIteration = solver.iterations
+
+  let iterations = 0
+  if (status === "Completed") {
+    const nextStep = solver.pipelineDef[stepIndex + 1]
+    const nextStepFirstIteration = nextStep
+      ? solver.firstIterationOfPhase[nextStep.solverName]
+      : undefined
+    if (nextStepFirstIteration !== undefined && firstIteration !== null) {
+      iterations = nextStepFirstIteration - firstIteration
+    } else if (firstIteration !== null) {
+      iterations = currentIteration - firstIteration
+    }
+  } else if (status === "In Progress" && firstIteration !== null) {
+    iterations = currentIteration - firstIteration
+  }
+
+  const timeSpent = solver.timeSpentOnPhase[stepName] ?? 0
+
+  let progress = 0
+  if (status === "Completed") {
+    progress = 1
+  } else if (status === "In Progress" && solverInstance) {
+    progress = solverInstance.progress ?? 0
+  }
+
+  const stats = solverInstance?.stats ?? null
+
+  return {
+    index: stepIndex,
+    name: stepName,
+    status,
+    firstIteration,
+    iterations,
+    progress,
+    timeSpent,
+    stats: stats && Object.keys(stats).length > 0 ? stats : null,
+    solverInstance: solverInstance ?? null,
+  }
+}
+
+const StatusBadge = ({ status }: { status: StepStatus }) => {
+  const colors: Record<StepStatus, string> = {
+    "Not Started": "text-blue-600",
+    "In Progress": "text-yellow-600",
+    Completed: "text-green-600",
+    Failed: "text-red-600",
+  }
+
+  return <span className={`font-medium ${colors[status]}`}>{status}</span>
+}
+
+const ProgressBar = ({ progress }: { progress: number }) => {
+  if (progress === 0) return null
+
+  const percentage = Math.round(progress * 100)
+
+  return (
+    <div className="flex items-center gap-2">
+      <div className="w-20 h-2 bg-gray-200 rounded overflow-hidden">
+        <div
+          className="h-full bg-blue-500 transition-all duration-200"
+          style={{ width: `${percentage}%` }}
+        />
+      </div>
+      <span className="text-xs text-gray-500">{percentage}%</span>
+    </div>
+  )
+}
+
+const deepRemoveUnderscoreProperties = (obj: any): any => {
+  if (obj === null || typeof obj !== "object") {
+    return obj
+  }
+
+  if (Array.isArray(obj)) {
+    return obj.map(deepRemoveUnderscoreProperties)
+  }
+
+  const result: any = {}
+  for (const [key, value] of Object.entries(obj)) {
+    if (!key.startsWith("_")) {
+      result[key] = deepRemoveUnderscoreProperties(value)
+    }
+  }
+  return result
+}
+
+const downloadSolverInput = (solver: BaseSolver, stepName: string) => {
+  try {
+    if (typeof solver.getConstructorParams !== "function") {
+      alert(`getConstructorParams() is not implemented for ${stepName}`)
+      return
+    }
+
+    const params = deepRemoveUnderscoreProperties(solver.getConstructorParams())
+    const blob = new Blob([JSON.stringify(params, null, 2)], {
+      type: "application/json",
+    })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = `${stepName}_input.json`
+    a.click()
+    URL.revokeObjectURL(url)
+  } catch (error) {
+    alert(
+      `Error downloading input for ${stepName}: ${error instanceof Error ? error.message : String(error)}`,
+    )
+  }
+}
+
+export const PipelineStagesTable = ({
+  solver,
+  onStepUntilPhase,
+  onDownloadInput,
+}: PipelineStagesTableProps) => {
+  const steps = solver.pipelineDef.map((_, index) => getStepInfo(solver, index))
+
+  const handlePlayClick = (stepName: string) => {
+    onStepUntilPhase?.(stepName)
+  }
+
+  const handleDownloadInput = (stepInfo: StepInfo) => {
+    if (stepInfo.solverInstance) {
+      if (onDownloadInput) {
+        onDownloadInput(stepInfo.solverInstance, stepInfo.name)
+      } else {
+        downloadSolverInput(stepInfo.solverInstance, stepInfo.name)
+      }
+    }
+  }
+
+  const formatTime = (ms: number): string => {
+    return `${(ms / 1000).toFixed(2)}s`
+  }
+
+  const formatStats = (stats: Record<string, any> | null): string => {
+    if (!stats || Object.keys(stats).length === 0) return "-"
+    return Object.entries(stats)
+      .map(([key, value]) => `${key}: ${value}`)
+      .join(", ")
+  }
+
+  return (
+    <div className="border-t border-gray-200">
+      <div className="px-4 py-2 bg-gray-50 border-b border-gray-200">
+        <h3 className="text-sm font-semibold text-gray-700">Pipeline Steps</h3>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="bg-gray-50 border-b border-gray-200">
+              <th className="px-4 py-2 text-left font-semibold text-gray-700">
+                Step
+              </th>
+              <th className="px-4 py-2 text-left font-semibold text-gray-700">
+                Status
+              </th>
+              <th className="px-4 py-2 text-center font-semibold text-gray-700">
+                i<sub>0</sub>
+              </th>
+              <th className="px-4 py-2 text-left font-semibold text-gray-700">
+                Iterations
+              </th>
+              <th className="px-4 py-2 text-left font-semibold text-gray-700">
+                Progress
+              </th>
+              <th className="px-4 py-2 text-left font-semibold text-gray-700">
+                Time
+              </th>
+              <th className="px-4 py-2 text-left font-semibold text-gray-700">
+                Stats
+              </th>
+              <th className="px-4 py-2 text-left font-semibold text-gray-700">
+                Input
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {steps.map((step) => (
+              <tr
+                key={step.name}
+                className={`border-b border-gray-100 ${
+                  step.status === "In Progress" ? "bg-yellow-50" : ""
+                }`}
+              >
+                <td className="px-4 py-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-gray-400 w-6">
+                      {String(step.index + 1).padStart(2, "0")}
+                    </span>
+                    <button
+                      onClick={() => handlePlayClick(step.name)}
+                      disabled={
+                        step.status === "Completed" ||
+                        solver.solved ||
+                        solver.failed
+                      }
+                      className="text-blue-500 hover:text-blue-700 disabled:text-gray-300 disabled:cursor-not-allowed"
+                      title={`Step until ${step.name} completes`}
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 24 24"
+                        fill="currentColor"
+                        className="w-4 h-4"
+                      >
+                        <path
+                          fillRule="evenodd"
+                          d="M4.5 5.653c0-1.426 1.529-2.33 2.779-1.643l11.54 6.348c1.295.712 1.295 2.573 0 3.285L7.28 19.991c-1.25.687-2.779-.217-2.779-1.643V5.653z"
+                          clipRule="evenodd"
+                        />
+                      </svg>
+                    </button>
+                    <span className="font-medium text-gray-900">
+                      {step.name}
+                    </span>
+                  </div>
+                </td>
+                <td className="px-4 py-2">
+                  <StatusBadge status={step.status} />
+                </td>
+                <td className="px-4 py-2 text-center text-gray-600">
+                  {step.firstIteration !== null ? step.firstIteration : ""}
+                </td>
+                <td className="px-4 py-2 text-gray-600">{step.iterations}</td>
+                <td className="px-4 py-2">
+                  <ProgressBar progress={step.progress} />
+                </td>
+                <td className="px-4 py-2 text-gray-600">
+                  {formatTime(step.timeSpent)}
+                </td>
+                <td className="px-4 py-2 text-gray-500">
+                  {formatStats(step.stats)}
+                </td>
+                <td className="px-4 py-2">
+                  {step.solverInstance ? (
+                    <button
+                      onClick={() => handleDownloadInput(step)}
+                      className="flex items-center gap-1 text-blue-500 hover:text-blue-700"
+                      title={`Download input for ${step.name}`}
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 24 24"
+                        fill="currentColor"
+                        className="w-4 h-4"
+                      >
+                        <path
+                          fillRule="evenodd"
+                          d="M12 2.25a.75.75 0 01.75.75v11.69l3.22-3.22a.75.75 0 111.06 1.06l-4.5 4.5a.75.75 0 01-1.06 0l-4.5-4.5a.75.75 0 111.06-1.06l3.22 3.22V3a.75.75 0 01.75-.75zm-9 13.5a.75.75 0 01.75.75v2.25a1.5 1.5 0 001.5 1.5h13.5a1.5 1.5 0 001.5-1.5V16.5a.75.75 0 011.5 0v2.25a3 3 0 01-3 3H5.25a3 3 0 01-3-3V16.5a.75.75 0 01.75-.75z"
+                          clipRule="evenodd"
+                        />
+                      </svg>
+                      <span>Input</span>
+                    </button>
+                  ) : null}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}

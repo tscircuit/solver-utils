@@ -1,7 +1,9 @@
 import React, { useEffect, useMemo, useReducer } from "react"
 import type { BaseSolver } from "../BaseSolver"
+import type { BasePipelineSolver } from "../BasePipelineSolver"
 import { InteractiveGraphics } from "graphics-debug/react"
 import { GenericSolverToolbar } from "./GenericSolverToolbar"
+import { PipelineStagesTable } from "./PipelineStagesTable"
 import type { GraphicsObject } from "graphics-debug"
 
 class ErrorBoundary extends React.Component<
@@ -202,6 +204,24 @@ export const GenericSolverDebugger = ({
     }
   }, [])
 
+  const isPipelineSolver = (solver as any).pipelineDef !== undefined
+
+  const handleStepUntilPhase = (phaseName: string) => {
+    const pipelineSolver = solver as BasePipelineSolver<any>
+    if (!solver.solved && !solver.failed) {
+      // Step until the specified phase is completed
+      while (
+        !solver.solved &&
+        !solver.failed &&
+        pipelineSolver.currentPipelineStepIndex <=
+          pipelineSolver.pipelineDef.findIndex((s) => s.solverName === phaseName)
+      ) {
+        solver.step()
+      }
+      incRenderCount()
+    }
+  }
+
   return (
     <div>
       <GenericSolverToolbar
@@ -221,6 +241,12 @@ export const GenericSolverDebugger = ({
         >
           <InteractiveGraphics graphics={visualization} />
         </ErrorBoundary>
+      )}
+      {isPipelineSolver && (
+        <PipelineStagesTable
+          solver={solver as BasePipelineSolver<any>}
+          onStepUntilPhase={handleStepUntilPhase}
+        />
       )}
     </div>
   )
