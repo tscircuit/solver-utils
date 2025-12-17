@@ -126,6 +126,36 @@ const ProgressBar = ({ progress }: { progress: number }) => {
   )
 }
 
+const formatStatsLine = (stats: Record<string, any>): string => {
+  return Object.entries(stats)
+    .map(([key, value]) => `${key}: ${value}`)
+    .join(", ")
+}
+
+const StatsCell = ({ stats }: { stats: Record<string, any> | null }) => {
+  if (!stats || Object.keys(stats).length === 0) {
+    return <span>-</span>
+  }
+
+  const entries = Object.entries(stats)
+  const summaryText = formatStatsLine(stats)
+
+  return (
+    <details className="cursor-pointer">
+      <summary className="whitespace-nowrap overflow-hidden text-ellipsis max-w-[200px]">
+        {summaryText}
+      </summary>
+      <div className="mt-1 text-xs">
+        {entries.map(([key, value]) => (
+          <div key={key}>
+            {key}: {String(value)}
+          </div>
+        ))}
+      </div>
+    </details>
+  )
+}
+
 const deepRemoveUnderscoreProperties = (obj: any): any => {
   if (obj === null || typeof obj !== "object") {
     return obj
@@ -191,13 +221,6 @@ export const PipelineStagesTable = ({
 
   const formatTime = (ms: number): string => {
     return `${(ms / 1000).toFixed(2)}s`
-  }
-
-  const formatStats = (stats: Record<string, any> | null): string => {
-    if (!stats || Object.keys(stats).length === 0) return "-"
-    return Object.entries(stats)
-      .map(([key, value]) => `${key}: ${value}`)
-      .join(", ")
   }
 
   return (
@@ -290,7 +313,7 @@ export const PipelineStagesTable = ({
                   {formatTime(step.timeSpent)}
                 </td>
                 <td className="px-4 py-2 text-gray-500">
-                  {formatStats(step.stats)}
+                  <StatsCell stats={step.stats} />
                 </td>
                 <td className="px-4 py-2">
                   {step.solverInstance ? (
