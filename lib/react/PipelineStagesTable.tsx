@@ -8,12 +8,12 @@ interface PipelineStagesTableProps {
   onDownloadInput?: (solver: BaseSolver, stepName: string) => void
 }
 
-type StepStatus = "Not Started" | "In Progress" | "Completed" | "Failed"
+type StageStatus = "Not Started" | "In Progress" | "Completed" | "Failed"
 
-interface StepInfo {
+interface StageInfo {
   index: number
   name: string
-  status: StepStatus
+  status: StageStatus
   firstIteration: number | null
   iterations: number
   progress: number
@@ -22,11 +22,11 @@ interface StepInfo {
   solverInstance: BaseSolver | null
 }
 
-const getStepStatus = (
+const getStageStatus = (
   solver: BasePipelineSolver<any>,
   stepIndex: number,
   stepName: string,
-): StepStatus => {
+): StageStatus => {
   const currentIndex = solver.currentPipelineStepIndex
 
   if (stepIndex < currentIndex) {
@@ -46,16 +46,16 @@ const getStepStatus = (
   return "Not Started"
 }
 
-const getStepInfo = (
+const getStageInfo = (
   solver: BasePipelineSolver<any>,
   stepIndex: number,
-): StepInfo => {
+): StageInfo => {
   const step = solver.pipelineDef[stepIndex]!
   const stepName = step.solverName
-  const status = getStepStatus(solver, stepIndex, stepName)
+  const status = getStageStatus(solver, stepIndex, stepName)
   const solverInstance = (solver as any)[stepName] as BaseSolver | undefined
 
-  const firstIteration = solver.firstIterationOfPhase[stepName] ?? null
+  const firstIteration = solver.firstIterationOfPhase?.[stepName] ?? null
   const currentIteration = solver.iterations
 
   let iterations = 0
@@ -73,7 +73,7 @@ const getStepInfo = (
     iterations = currentIteration - firstIteration
   }
 
-  const timeSpent = solver.timeSpentOnPhase[stepName] ?? 0
+  const timeSpent = solver.timeSpentOnPhase?.[stepName] ?? 0
 
   let progress = 0
   if (status === "Completed") {
@@ -97,8 +97,8 @@ const getStepInfo = (
   }
 }
 
-const StatusBadge = ({ status }: { status: StepStatus }) => {
-  const colors: Record<StepStatus, string> = {
+const StatusBadge = ({ status }: { status: StageStatus }) => {
+  const colors: Record<StageStatus, string> = {
     "Not Started": "text-blue-600",
     "In Progress": "text-yellow-600",
     Completed: "text-green-600",
@@ -174,10 +174,10 @@ const deepRemoveUnderscoreProperties = (obj: any): any => {
   return result
 }
 
-const downloadSolverInput = (solver: BaseSolver, stepName: string) => {
+const downloadSolverInput = (solver: BaseSolver, stageName: string) => {
   try {
     if (typeof solver.getConstructorParams !== "function") {
-      alert(`getConstructorParams() is not implemented for ${stepName}`)
+      alert(`getConstructorParams() is not implemented for ${stageName}`)
       return
     }
 
@@ -188,12 +188,12 @@ const downloadSolverInput = (solver: BaseSolver, stepName: string) => {
     const url = URL.createObjectURL(blob)
     const a = document.createElement("a")
     a.href = url
-    a.download = `${stepName}_input.json`
+    a.download = `${stageName}_input.json`
     a.click()
     URL.revokeObjectURL(url)
   } catch (error) {
     alert(
-      `Error downloading input for ${stepName}: ${error instanceof Error ? error.message : String(error)}`,
+      `Error downloading input for ${stageName}: ${error instanceof Error ? error.message : String(error)}`,
     )
   }
 }
@@ -203,18 +203,20 @@ export const PipelineStagesTable = ({
   onStepUntilPhase,
   onDownloadInput,
 }: PipelineStagesTableProps) => {
-  const steps = solver.pipelineDef.map((_, index) => getStepInfo(solver, index))
+  const stages = solver.pipelineDef.map((_, index) =>
+    getStageInfo(solver, index),
+  )
 
-  const handlePlayClick = (stepName: string) => {
-    onStepUntilPhase?.(stepName)
+  const handlePlayClick = (stageName: string) => {
+    onStepUntilPhase?.(stageName)
   }
 
-  const handleDownloadInput = (stepInfo: StepInfo) => {
-    if (stepInfo.solverInstance) {
+  const handleDownloadInput = (stageInfo: StageInfo) => {
+    if (stageInfo.solverInstance) {
       if (onDownloadInput) {
-        onDownloadInput(stepInfo.solverInstance, stepInfo.name)
+        onDownloadInput(stageInfo.solverInstance, stageInfo.name)
       } else {
-        downloadSolverInput(stepInfo.solverInstance, stepInfo.name)
+        downloadSolverInput(stageInfo.solverInstance, stageInfo.name)
       }
     }
   }
@@ -259,27 +261,27 @@ export const PipelineStagesTable = ({
             </tr>
           </thead>
           <tbody>
-            {steps.map((step) => (
+            {stages.map((stage) => (
               <tr
-                key={step.name}
+                key={stage.name}
                 className={`border-b border-gray-100 ${
-                  step.status === "In Progress" ? "bg-yellow-50" : ""
+                  stage.status === "In Progress" ? "bg-yellow-50" : ""
                 }`}
               >
                 <td className="px-4 py-2">
                   <div className="flex items-center gap-2">
                     <span className="text-gray-400 w-6">
-                      {String(step.index + 1).padStart(2, "0")}
+                      {String(stage.index + 1).padStart(2, "0")}
                     </span>
                     <button
-                      onClick={() => handlePlayClick(step.name)}
+                      onClick={() => handlePlayClick(stage.name)}
                       disabled={
-                        step.status === "Completed" ||
+                        stage.status === "Completed" ||
                         solver.solved ||
                         solver.failed
                       }
                       className="text-blue-500 hover:text-blue-700 disabled:text-gray-300 disabled:cursor-not-allowed"
-                      title={`Step until ${step.name} completes`}
+                      title={`Step until ${stage.name} completes`}
                     >
                       <svg
                         xmlns="http://www.w3.org/2000/svg"
@@ -295,32 +297,32 @@ export const PipelineStagesTable = ({
                       </svg>
                     </button>
                     <span className="font-medium text-gray-900">
-                      {step.name}
+                      {stage.name}
                     </span>
                   </div>
                 </td>
                 <td className="px-4 py-2">
-                  <StatusBadge status={step.status} />
+                  <StatusBadge status={stage.status} />
                 </td>
                 <td className="px-4 py-2 text-center text-gray-600">
-                  {step.firstIteration !== null ? step.firstIteration : ""}
+                  {stage.firstIteration !== null ? stage.firstIteration : ""}
                 </td>
-                <td className="px-4 py-2 text-gray-600">{step.iterations}</td>
+                <td className="px-4 py-2 text-gray-600">{stage.iterations}</td>
                 <td className="px-4 py-2">
-                  <ProgressBar progress={step.progress} />
+                  <ProgressBar progress={stage.progress} />
                 </td>
                 <td className="px-4 py-2 text-gray-600">
-                  {formatTime(step.timeSpent)}
+                  {formatTime(stage.timeSpent)}
                 </td>
                 <td className="px-4 py-2 text-gray-500">
-                  <StatsCell stats={step.stats} />
+                  <StatsCell stats={stage.stats} />
                 </td>
                 <td className="px-4 py-2">
-                  {step.solverInstance ? (
+                  {stage.solverInstance ? (
                     <button
-                      onClick={() => handleDownloadInput(step)}
+                      onClick={() => handleDownloadInput(stage)}
                       className="flex items-center gap-1 text-blue-500 hover:text-blue-700"
-                      title={`Download input for ${step.name}`}
+                      title={`Download input for ${stage.name}`}
                     >
                       <svg
                         xmlns="http://www.w3.org/2000/svg"
