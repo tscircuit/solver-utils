@@ -48,24 +48,26 @@ const getStageStatus = (
 
 const getStageInfo = (
   solver: BasePipelineSolver<any>,
-  stepIndex: number,
+  stageIndex: number,
 ): StageInfo => {
-  const step = solver.pipelineDef[stepIndex]!
-  const stepName = step.solverName
-  const status = getStageStatus(solver, stepIndex, stepName)
-  const solverInstance = (solver as any)[stepName] as BaseSolver | undefined
+  const stage = solver.pipelineDef[stageIndex]!
+  const stageName = stage.solverName
+  const status = getStageStatus(solver, stageIndex, stageName)
+  const solverInstance = (solver as any)[stageName] as
+    | Partial<BaseSolver>
+    | undefined
 
-  const firstIteration = solver.firstIterationOfPhase?.[stepName] ?? null
+  const firstIteration = solver.firstIterationOfPhase?.[stageName] ?? null
   const currentIteration = solver.iterations
 
   let iterations = 0
   if (status === "Completed") {
-    const nextStep = solver.pipelineDef[stepIndex + 1]
-    const nextStepFirstIteration = nextStep
-      ? solver.firstIterationOfPhase[nextStep.solverName]
+    const nextStage = solver.pipelineDef[stageIndex + 1]
+    const nextStageFirstIteration = nextStage
+      ? solver.firstIterationOfPhase?.[nextStage.solverName]
       : undefined
-    if (nextStepFirstIteration !== undefined && firstIteration !== null) {
-      iterations = nextStepFirstIteration - firstIteration
+    if (nextStageFirstIteration !== undefined && firstIteration !== null) {
+      iterations = nextStageFirstIteration - firstIteration
     } else if (firstIteration !== null) {
       iterations = currentIteration - firstIteration
     }
@@ -73,7 +75,7 @@ const getStageInfo = (
     iterations = currentIteration - firstIteration
   }
 
-  const timeSpent = solver.timeSpentOnPhase?.[stepName] ?? 0
+  const timeSpent = solver.timeSpentOnPhase?.[stageName] ?? 0
 
   let progress = 0
   if (status === "Completed") {
@@ -85,15 +87,15 @@ const getStageInfo = (
   const stats = solverInstance?.stats ?? null
 
   return {
-    index: stepIndex,
-    name: stepName,
+    index: stageIndex,
+    name: stageName,
     status,
     firstIteration,
     iterations,
     progress,
     timeSpent,
     stats: stats && Object.keys(stats).length > 0 ? stats : null,
-    solverInstance: solverInstance ?? null,
+    solverInstance: (solverInstance as any) ?? null,
   }
 }
 
