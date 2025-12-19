@@ -37,7 +37,7 @@ export abstract class BasePipelineSolver<TInput> extends BaseSolver {
   currentPipelineStepIndex = 0
   inputProblem: TInput
 
-  /** Stores the outputs from each completed pipeline step */
+  /** Stores the outputs from each completed pipeline stage */
   pipelineOutputs: Record<string, any> = {}
 
   abstract pipelineDef: PipelineStep<any>[]
@@ -88,14 +88,16 @@ export abstract class BasePipelineSolver<TInput> extends BaseSolver {
     this.firstIterationOfPhase[pipelineStepDef.solverName] = this.iterations
   }
 
-  solveUntilPhase(phase: string) {
-    while (this.getCurrentPhase().toLowerCase() !== phase.toLowerCase()) {
+  solveUntilStage(stageName: string) {
+    while (
+      this.getCurrentStageName().toLowerCase() !== stageName.toLowerCase()
+    ) {
       this.step()
       if (this.failed || this.solved) break
     }
   }
 
-  getCurrentPhase(): string {
+  getCurrentStageName(): string {
     return this.pipelineDef[this.currentPipelineStepIndex]?.solverName ?? "none"
   }
 
@@ -122,7 +124,7 @@ export abstract class BasePipelineSolver<TInput> extends BaseSolver {
       const firstIteration = this.firstIterationOfPhase[step.solverName] || 0
       const currentIteration = this.iterations
       const iterations =
-        step.solverName === this.getCurrentPhase()
+        step.solverName === this.getCurrentStageName()
           ? currentIteration - firstIteration
           : 0
       const completed =
@@ -200,10 +202,10 @@ export abstract class BasePipelineSolver<TInput> extends BaseSolver {
   }
 
   /**
-   * Get the output from a specific pipeline step
+   * Get the output from a specific pipeline stage
    */
-  getStepOutput<T = any>(stepName: string): T | undefined {
-    return this.pipelineOutputs[stepName]
+  getStageOutput<T = any>(stageOutput: string): T | undefined {
+    return this.pipelineOutputs[stageOutput]
   }
 
   /**
@@ -216,14 +218,14 @@ export abstract class BasePipelineSolver<TInput> extends BaseSolver {
   /**
    * Check if a step has completed and produced output
    */
-  hasStepOutput(stepName: string): boolean {
-    return stepName in this.pipelineOutputs
+  hasStageOutput(stageName: string): boolean {
+    return stageName in this.pipelineOutputs
   }
 
   /**
    * Get a solver instance by name
    */
-  getSolver<T extends BaseSolver>(stepName: string): T | undefined {
-    return (this as any)[stepName] as T | undefined
+  getSolver<T extends BaseSolver>(stageName: string): T | undefined {
+    return (this as any)[stageName] as T | undefined
   }
 }

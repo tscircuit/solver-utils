@@ -71,12 +71,16 @@ export const GenericSolverToolbar = ({
 
   const handleNextStage = () => {
     const pipelineSolver = solver as BasePipelineSolver<any>
-    if (pipelineSolver.getCurrentPhase && !solver.solved && !solver.failed) {
-      const initialPhase = pipelineSolver.getCurrentPhase()
+    if (
+      pipelineSolver.getCurrentStageName &&
+      !solver.solved &&
+      !solver.failed
+    ) {
+      const initialPhase = pipelineSolver.getCurrentStageName()
 
       // Step until we get to a different phase or solve/fail
       while (
-        pipelineSolver.getCurrentPhase() === initialPhase &&
+        pipelineSolver.getCurrentStageName() === initialPhase &&
         !solver.solved &&
         !solver.failed
       ) {
@@ -139,7 +143,7 @@ export const GenericSolverToolbar = ({
 
   const isPipelineSolver = (solver as any).getCurrentPhase !== undefined
   const currentPhase = isPipelineSolver
-    ? (solver as BasePipelineSolver<any>).getCurrentPhase()
+    ? (solver as BasePipelineSolver<any>).getCurrentStageName()
     : null
 
   return (

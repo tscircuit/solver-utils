@@ -230,14 +230,14 @@ export const PipelineStagesTable = ({
   return (
     <div className="border-t border-gray-200">
       <div className="px-4 py-2 bg-gray-50 border-b border-gray-200">
-        <h3 className="text-sm font-semibold text-gray-700">Pipeline Steps</h3>
+        <h3 className="text-sm font-semibold text-gray-700">Pipeline Stages</h3>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-gray-50 border-b border-gray-200">
               <th className="px-4 py-2 text-left font-semibold text-gray-700">
-                Step
+                Stage
               </th>
               <th className="px-4 py-2 text-left font-semibold text-gray-700">
                 Status

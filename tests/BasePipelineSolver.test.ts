@@ -166,7 +166,7 @@ test("BasePipelineSolver extension basic functionality", () => {
   expect(pipeline.solved).toBe(false)
   expect(pipeline.failed).toBe(false)
   expect(pipeline.currentPipelineStepIndex).toBe(0)
-  expect(pipeline.getCurrentPhase()).toBe("stepOneSolver")
+  expect(pipeline.getCurrentStageName()).toBe("stepOneSolver")
   expect(pipeline.inputProblem).toEqual(input)
 })
 
@@ -187,10 +187,13 @@ test("BasePipelineSolver step-by-step execution", () => {
   expect(pipeline.getSolver<StepOneSolver>("stepOneSolver")).toBeInstanceOf(
     StepOneSolver,
   )
-  expect(pipeline.getCurrentPhase()).toBe("stepOneSolver")
+  expect(pipeline.getCurrentStageName()).toBe("stepOneSolver")
 
   // Continue until first step is done
-  while (pipeline.getCurrentPhase() === "stepOneSolver" && !pipeline.failed) {
+  while (
+    pipeline.getCurrentStageName() === "stepOneSolver" &&
+    !pipeline.failed
+  ) {
     pipeline.step()
   }
 
@@ -198,7 +201,7 @@ test("BasePipelineSolver step-by-step execution", () => {
   expect(
     pipeline.getSolver<StepOneSolver>("stepOneSolver")!.result,
   ).toBeGreaterThanOrEqual(10)
-  expect(pipeline.getCurrentPhase()).toBe("stepTwoSolver")
+  expect(pipeline.getCurrentStageName()).toBe("stepTwoSolver")
 
   // Take one more step to instantiate the second solver
   pipeline.step()
@@ -218,7 +221,7 @@ test("BasePipelineSolver full pipeline execution", () => {
 
   expect(pipeline.solved).toBe(true)
   expect(pipeline.failed).toBe(false)
-  expect(pipeline.getCurrentPhase()).toBe("none")
+  expect(pipeline.getCurrentStageName()).toBe("none")
   expect((pipeline as any).finalResult).toBeGreaterThan(0)
 
   // All sub-solvers should be solved (using type-safe accessor)
@@ -238,9 +241,9 @@ test("BasePipelineSolver solveUntilPhase", () => {
   const pipeline = new TestPipelineSolver(input)
 
   // Solve until step 2
-  pipeline.solveUntilPhase("stepTwoSolver")
+  pipeline.solveUntilStage("stepTwoSolver")
 
-  expect(pipeline.getCurrentPhase()).toBe("stepTwoSolver")
+  expect(pipeline.getCurrentStageName()).toBe("stepTwoSolver")
   expect(pipeline.getSolver<StepOneSolver>("stepOneSolver")!.solved).toBe(true)
   expect(pipeline.getSolver("stepThreeSolver")).toBeUndefined()
   expect(pipeline.solved).toBe(false)
@@ -264,7 +267,7 @@ test("BasePipelineSolver phase progress tracking", () => {
   expect(pipeline.getPhaseProgress()).toBe(0)
 
   // Solve first phase
-  pipeline.solveUntilPhase("stepTwoSolver")
+  pipeline.solveUntilStage("stepTwoSolver")
 
   // Progress should be around 1/3 (first phase complete, second phase starting)
   const progressAfterPhase1 = pipeline.getPhaseProgress()
