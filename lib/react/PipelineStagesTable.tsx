@@ -1,4 +1,4 @@
-import React from "react"
+import React, { useState } from "react"
 import type { BasePipelineSolver } from "../BasePipelineSolver"
 import type { BaseSolver } from "../BaseSolver"
 
@@ -6,6 +6,17 @@ interface PipelineStagesTableProps {
   solver: BasePipelineSolver<any>
   onStepUntilPhase?: (phaseName: string) => void
   onDownloadInput?: (solver: BaseSolver, stepName: string) => void
+  /** Used for nested tables - removes title and adds indentation */
+  isNested?: boolean
+  /** Indentation level for nested tables */
+  indentLevel?: number
+}
+
+/** Check if a solver is a pipeline solver (has pipelineDef) */
+const isPipelineSolver = (
+  solver: BaseSolver | null,
+): solver is BasePipelineSolver<any> => {
+  return solver !== null && "pipelineDef" in solver && Array.isArray((solver as any).pipelineDef)
 }
 
 type StageStatus = "Not Started" | "In Progress" | "Completed" | "Failed"
@@ -200,14 +211,46 @@ const downloadSolverInput = (solver: BaseSolver, stageName: string) => {
   }
 }
 
+/** Chevron icon for expand/collapse */
+const ChevronIcon = ({ expanded }: { expanded: boolean }) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 24 24"
+    fill="currentColor"
+    className={`w-4 h-4 transition-transform duration-200 ${expanded ? "rotate-90" : ""}`}
+  >
+    <path
+      fillRule="evenodd"
+      d="M4.5 5.653c0-1.426 1.529-2.33 2.779-1.643l11.54 6.348c1.295.712 1.295 2.573 0 3.285L7.28 19.991c-1.25.687-2.779-.217-2.779-1.643V5.653z"
+      clipRule="evenodd"
+    />
+  </svg>
+)
+
 export const PipelineStagesTable = ({
   solver,
   onStepUntilPhase,
   onDownloadInput,
+  isNested = false,
+  indentLevel = 0,
 }: PipelineStagesTableProps) => {
+  const [expandedStages, setExpandedStages] = useState<Set<string>>(new Set())
+
   const stages = solver.pipelineDef.map((_, index) =>
     getStageInfo(solver, index),
   )
+
+  const toggleExpanded = (stageName: string) => {
+    setExpandedStages((prev) => {
+      const next = new Set(prev)
+      if (next.has(stageName)) {
+        next.delete(stageName)
+      } else {
+        next.add(stageName)
+      }
+      return next
+    })
+  }
 
   const handlePlayClick = (stageName: string) => {
     onStepUntilPhase?.(stageName)
@@ -227,123 +270,162 @@ export const PipelineStagesTable = ({
     return `${(ms / 1000).toFixed(2)}s`
   }
 
+  const indentPadding = indentLevel * 24
+
   return (
-    <div className="border-t border-gray-200">
-      <div className="px-4 py-2 bg-gray-50 border-b border-gray-200">
-        <h3 className="text-sm font-semibold text-gray-700">Pipeline Stages</h3>
-      </div>
+    <div className={isNested ? "" : "border-t border-gray-200"}>
+      {!isNested && (
+        <div className="px-4 py-2 bg-gray-50 border-b border-gray-200">
+          <h3 className="text-sm font-semibold text-gray-700">Pipeline Stages</h3>
+        </div>
+      )}
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
-          <thead>
-            <tr className="bg-gray-50 border-b border-gray-200">
-              <th className="px-4 py-2 text-left font-semibold text-gray-700">
-                Stage
-              </th>
-              <th className="px-4 py-2 text-left font-semibold text-gray-700">
-                Status
-              </th>
-              <th className="px-4 py-2 text-center font-semibold text-gray-700">
-                i<sub>0</sub>
-              </th>
-              <th className="px-4 py-2 text-left font-semibold text-gray-700">
-                Iterations
-              </th>
-              <th className="px-4 py-2 text-left font-semibold text-gray-700">
-                Progress
-              </th>
-              <th className="px-4 py-2 text-left font-semibold text-gray-700">
-                Time
-              </th>
-              <th className="px-4 py-2 text-left font-semibold text-gray-700">
-                Stats
-              </th>
-              <th className="px-4 py-2 text-left font-semibold text-gray-700">
-                Input
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {stages.map((stage) => (
-              <tr
-                key={stage.name}
-                className={`border-b border-gray-100 ${
-                  stage.status === "In Progress" ? "bg-yellow-50" : ""
-                }`}
-              >
-                <td className="px-4 py-2">
-                  <div className="flex items-center gap-2">
-                    <span className="text-gray-400 w-6">
-                      {String(stage.index + 1).padStart(2, "0")}
-                    </span>
-                    <button
-                      onClick={() => handlePlayClick(stage.name)}
-                      disabled={
-                        stage.status === "Completed" ||
-                        solver.solved ||
-                        solver.failed
-                      }
-                      className="text-blue-500 hover:text-blue-700 disabled:text-gray-300 disabled:cursor-not-allowed"
-                      title={`Step until ${stage.name} completes`}
-                    >
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        viewBox="0 0 24 24"
-                        fill="currentColor"
-                        className="w-4 h-4"
-                      >
-                        <path
-                          fillRule="evenodd"
-                          d="M4.5 5.653c0-1.426 1.529-2.33 2.779-1.643l11.54 6.348c1.295.712 1.295 2.573 0 3.285L7.28 19.991c-1.25.687-2.779-.217-2.779-1.643V5.653z"
-                          clipRule="evenodd"
-                        />
-                      </svg>
-                    </button>
-                    <span className="font-medium text-gray-900">
-                      {stage.name}
-                    </span>
-                  </div>
-                </td>
-                <td className="px-4 py-2">
-                  <StatusBadge status={stage.status} />
-                </td>
-                <td className="px-4 py-2 text-center text-gray-600">
-                  {stage.firstIteration !== null ? stage.firstIteration : ""}
-                </td>
-                <td className="px-4 py-2 text-gray-600">{stage.iterations}</td>
-                <td className="px-4 py-2">
-                  <ProgressBar progress={stage.progress} />
-                </td>
-                <td className="px-4 py-2 text-gray-600">
-                  {formatTime(stage.timeSpent)}
-                </td>
-                <td className="px-4 py-2 text-gray-500">
-                  <StatsCell stats={stage.stats} />
-                </td>
-                <td className="px-4 py-2">
-                  {stage.solverInstance ? (
-                    <button
-                      onClick={() => handleDownloadInput(stage)}
-                      className="flex items-center gap-1 text-blue-500 hover:text-blue-700"
-                      title={`Download input for ${stage.name}`}
-                    >
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        viewBox="0 0 24 24"
-                        fill="currentColor"
-                        className="w-4 h-4"
-                      >
-                        <path
-                          fillRule="evenodd"
-                          d="M12 2.25a.75.75 0 01.75.75v11.69l3.22-3.22a.75.75 0 111.06 1.06l-4.5 4.5a.75.75 0 01-1.06 0l-4.5-4.5a.75.75 0 111.06-1.06l3.22 3.22V3a.75.75 0 01.75-.75zm-9 13.5a.75.75 0 01.75.75v2.25a1.5 1.5 0 001.5 1.5h13.5a1.5 1.5 0 001.5-1.5V16.5a.75.75 0 011.5 0v2.25a3 3 0 01-3 3H5.25a3 3 0 01-3-3V16.5a.75.75 0 01.75-.75z"
-                          clipRule="evenodd"
-                        />
-                      </svg>
-                      <span>Input</span>
-                    </button>
-                  ) : null}
-                </td>
+          {!isNested && (
+            <thead>
+              <tr className="bg-gray-50 border-b border-gray-200">
+                <th className="px-4 py-2 text-left font-semibold text-gray-700">
+                  Stage
+                </th>
+                <th className="px-4 py-2 text-left font-semibold text-gray-700">
+                  Status
+                </th>
+                <th className="px-4 py-2 text-center font-semibold text-gray-700">
+                  i<sub>0</sub>
+                </th>
+                <th className="px-4 py-2 text-left font-semibold text-gray-700">
+                  Iterations
+                </th>
+                <th className="px-4 py-2 text-left font-semibold text-gray-700">
+                  Progress
+                </th>
+                <th className="px-4 py-2 text-left font-semibold text-gray-700">
+                  Time
+                </th>
+                <th className="px-4 py-2 text-left font-semibold text-gray-700">
+                  Stats
+                </th>
+                <th className="px-4 py-2 text-left font-semibold text-gray-700">
+                  Input
+                </th>
               </tr>
-            ))}
+            </thead>
+          )}
+          <tbody>
+            {stages.map((stage) => {
+              const isPipeline = isPipelineSolver(stage.solverInstance)
+              const isExpanded = expandedStages.has(stage.name)
+
+              return (
+                <React.Fragment key={stage.name}>
+                  <tr
+                    className={`border-b border-gray-100 ${
+                      stage.status === "In Progress" ? "bg-yellow-50" : ""
+                    }`}
+                  >
+                    <td className="px-4 py-2">
+                      <div
+                        className="flex items-center gap-2"
+                        style={{ paddingLeft: indentPadding }}
+                      >
+                        {isPipeline ? (
+                          <button
+                            onClick={() => toggleExpanded(stage.name)}
+                            className="text-gray-500 hover:text-gray-700"
+                            title={isExpanded ? "Collapse" : "Expand"}
+                          >
+                            <ChevronIcon expanded={isExpanded} />
+                          </button>
+                        ) : (
+                          <span className="w-4" />
+                        )}
+                        <span className="text-gray-400 w-6">
+                          {String(stage.index + 1).padStart(2, "0")}
+                        </span>
+                        <button
+                          onClick={() => handlePlayClick(stage.name)}
+                          disabled={
+                            stage.status === "Completed" ||
+                            solver.solved ||
+                            solver.failed
+                          }
+                          className="text-blue-500 hover:text-blue-700 disabled:text-gray-300 disabled:cursor-not-allowed"
+                          title={`Step until ${stage.name} completes`}
+                        >
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            viewBox="0 0 24 24"
+                            fill="currentColor"
+                            className="w-4 h-4"
+                          >
+                            <path
+                              fillRule="evenodd"
+                              d="M4.5 5.653c0-1.426 1.529-2.33 2.779-1.643l11.54 6.348c1.295.712 1.295 2.573 0 3.285L7.28 19.991c-1.25.687-2.779-.217-2.779-1.643V5.653z"
+                              clipRule="evenodd"
+                            />
+                          </svg>
+                        </button>
+                        <span className="font-medium text-gray-900">
+                          {stage.name}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-2">
+                      <StatusBadge status={stage.status} />
+                    </td>
+                    <td className="px-4 py-2 text-center text-gray-600">
+                      {stage.firstIteration !== null ? stage.firstIteration : ""}
+                    </td>
+                    <td className="px-4 py-2 text-gray-600">{stage.iterations}</td>
+                    <td className="px-4 py-2">
+                      <ProgressBar progress={stage.progress} />
+                    </td>
+                    <td className="px-4 py-2 text-gray-600">
+                      {formatTime(stage.timeSpent)}
+                    </td>
+                    <td className="px-4 py-2 text-gray-500">
+                      <StatsCell stats={stage.stats} />
+                    </td>
+                    <td className="px-4 py-2">
+                      {stage.solverInstance ? (
+                        <button
+                          onClick={() => handleDownloadInput(stage)}
+                          className="flex items-center gap-1 text-blue-500 hover:text-blue-700"
+                          title={`Download input for ${stage.name}`}
+                        >
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            viewBox="0 0 24 24"
+                            fill="currentColor"
+                            className="w-4 h-4"
+                          >
+                            <path
+                              fillRule="evenodd"
+                              d="M12 2.25a.75.75 0 01.75.75v11.69l3.22-3.22a.75.75 0 111.06 1.06l-4.5 4.5a.75.75 0 01-1.06 0l-4.5-4.5a.75.75 0 111.06-1.06l3.22 3.22V3a.75.75 0 01.75-.75zm-9 13.5a.75.75 0 01.75.75v2.25a1.5 1.5 0 001.5 1.5h13.5a1.5 1.5 0 001.5-1.5V16.5a.75.75 0 011.5 0v2.25a3 3 0 01-3 3H5.25a3 3 0 01-3-3V16.5a.75.75 0 01.75-.75z"
+                              clipRule="evenodd"
+                            />
+                          </svg>
+                          <span>Input</span>
+                        </button>
+                      ) : null}
+                    </td>
+                  </tr>
+                  {isPipeline && isExpanded && (
+                    <tr>
+                      <td colSpan={8} className="p-0">
+                        <PipelineStagesTable
+                          solver={stage.solverInstance as BasePipelineSolver<any>}
+                          onStepUntilPhase={onStepUntilPhase}
+                          onDownloadInput={onDownloadInput}
+                          isNested={true}
+                          indentLevel={indentLevel + 1}
+                        />
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
+              )
+            })}
           </tbody>
         </table>
       </div>
