@@ -10,6 +10,8 @@ interface PipelineStagesTableProps {
   isNested?: boolean
   /** Indentation level for nested tables */
   indentLevel?: number
+  /** Callback to trigger re-render after solver state changes */
+  triggerRender?: () => void
 }
 
 /** Check if a solver is a pipeline solver (has pipelineDef) */
@@ -227,12 +229,22 @@ const ChevronIcon = ({ expanded }: { expanded: boolean }) => (
   </svg>
 )
 
+/** Find the deepest activeSubSolver by traversing the chain */
+const getDeepestActiveSubSolver = (solver: BaseSolver): BaseSolver => {
+  let current = solver
+  while (current.activeSubSolver) {
+    current = current.activeSubSolver
+  }
+  return current
+}
+
 export const PipelineStagesTable = ({
   solver,
   onStepUntilPhase,
   onDownloadInput,
   isNested = false,
   indentLevel = 0,
+  triggerRender,
 }: PipelineStagesTableProps) => {
   const [expandedStages, setExpandedStages] = useState<Set<string>>(new Set())
 
@@ -270,13 +282,61 @@ export const PipelineStagesTable = ({
     return `${(ms / 1000).toFixed(2)}s`
   }
 
+  const handleNextStage = () => {
+    if (!solver.solved && !solver.failed) {
+      const initialPhase = solver.getCurrentStageName()
+
+      // Step until we get to a different phase or solve/fail
+      while (
+        solver.getCurrentStageName() === initialPhase &&
+        !solver.solved &&
+        !solver.failed
+      ) {
+        solver.step()
+      }
+      triggerRender?.()
+    }
+  }
+
+  const handleNextSolver = () => {
+    if (!solver.solved && !solver.failed) {
+      const initialDeepestSolver = getDeepestActiveSubSolver(solver)
+
+      // Step until the deepest activeSubSolver changes
+      while (!solver.solved && !solver.failed) {
+        solver.step()
+        const currentDeepestSolver = getDeepestActiveSubSolver(solver)
+        if (currentDeepestSolver !== initialDeepestSolver) {
+          break
+        }
+      }
+      triggerRender?.()
+    }
+  }
+
   const indentPadding = indentLevel * 24
 
   return (
     <div className={isNested ? "" : "border-t border-gray-200"}>
       {!isNested && (
-        <div className="px-4 py-2 bg-gray-50 border-b border-gray-200">
+        <div className="px-4 py-2 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
           <h3 className="text-sm font-semibold text-gray-700">Pipeline Stages</h3>
+          <div className="flex gap-2">
+            <button
+              onClick={handleNextSolver}
+              disabled={solver.solved || solver.failed}
+              className="bg-indigo-500 hover:bg-indigo-600 disabled:bg-gray-300 disabled:cursor-not-allowed cursor-pointer text-white px-3 py-1 rounded text-sm"
+            >
+              Next Solver
+            </button>
+            <button
+              onClick={handleNextStage}
+              disabled={solver.solved || solver.failed}
+              className="bg-purple-500 hover:bg-purple-600 disabled:bg-gray-300 disabled:cursor-not-allowed cursor-pointer text-white px-3 py-1 rounded text-sm"
+            >
+              Next Stage
+            </button>
+          </div>
         </div>
       )}
       <div className="overflow-x-auto">
@@ -419,6 +479,7 @@ export const PipelineStagesTable = ({
                           onDownloadInput={onDownloadInput}
                           isNested={true}
                           indentLevel={indentLevel + 1}
+                          triggerRender={triggerRender}
                         />
                       </td>
                     </tr>

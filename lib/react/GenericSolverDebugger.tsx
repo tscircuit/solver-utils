@@ -248,6 +248,7 @@ export const GenericSolverDebugger = ({
         <PipelineStagesTable
           solver={solver as BasePipelineSolver<any>}
           onStepUntilPhase={handleStepUntilPhase}
+          triggerRender={incRenderCount}
         />
       )}
     </div>
