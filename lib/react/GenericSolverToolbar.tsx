@@ -141,7 +141,8 @@ export const GenericSolverToolbar = ({
     }
   }, [solver.solved, solver.failed, isAnimating])
 
-  const isPipelineSolver = (solver as any).getCurrentPhase !== undefined
+  const isPipelineSolver =
+    (solver as BasePipelineSolver<any>).getCurrentStageName !== undefined
   const currentPhase = isPipelineSolver
     ? (solver as BasePipelineSolver<any>).getCurrentStageName()
     : null
