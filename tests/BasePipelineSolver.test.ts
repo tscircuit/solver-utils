@@ -165,7 +165,7 @@ test("BasePipelineSolver extension basic functionality", () => {
 
   expect(pipeline.solved).toBe(false)
   expect(pipeline.failed).toBe(false)
-  expect(pipeline.currentPipelineStepIndex).toBe(0)
+  expect(pipeline.currentPipelineStageIndex).toBe(0)
   expect(pipeline.getCurrentStageName()).toBe("stepOneSolver")
   expect(pipeline.inputProblem).toEqual(input)
 })
@@ -264,19 +264,19 @@ test("BasePipelineSolver phase progress tracking", () => {
   const pipeline = new TestPipelineSolver(input)
 
   // Initial progress should be 0
-  expect(pipeline.getPhaseProgress()).toBe(0)
+  expect(pipeline.getStageProgress()).toBe(0)
 
   // Solve first phase
   pipeline.solveUntilStage("stepTwoSolver")
 
   // Progress should be around 1/3 (first phase complete, second phase starting)
-  const progressAfterPhase1 = pipeline.getPhaseProgress()
+  const progressAfterPhase1 = pipeline.getStageProgress()
   expect(progressAfterPhase1).toBeGreaterThan(0.3)
   expect(progressAfterPhase1).toBeLessThan(0.7)
 
   // Complete the pipeline
   pipeline.solve()
-  expect(pipeline.getPhaseProgress()).toBe(1)
+  expect(pipeline.getStageProgress()).toBe(1)
 })
 
 test("BasePipelineSolver phase statistics", () => {
@@ -288,7 +288,7 @@ test("BasePipelineSolver phase statistics", () => {
   const pipeline = new TestPipelineSolver(input)
   pipeline.solve()
 
-  const stats = pipeline.getPhaseStats()
+  const stats = pipeline.getStageStats()
 
   expect(stats).toHaveProperty("stepOneSolver")
   expect(stats).toHaveProperty("stepTwoSolver")

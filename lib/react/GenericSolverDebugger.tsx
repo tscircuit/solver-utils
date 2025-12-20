@@ -86,7 +86,7 @@ export const GenericSolverDebugger = ({
       while (
         !solver.solved &&
         !solver.failed &&
-        pipelineSolver.currentPipelineStepIndex <=
+        pipelineSolver.currentPipelineStageIndex <=
           pipelineSolver.pipelineDef.findIndex(
             (s) => s.solverName === phaseName,
           )
