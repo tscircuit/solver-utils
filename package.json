@@ -22,7 +22,7 @@
     "@react-hook/resize-observer": "^2.0.2",
     "@types/bun": "latest",
     "@types/react": "^19.1.13",
-    "graphics-debug": "^0.0.75",
+    "graphics-debug": "^0.0.76",
     "react": "^19.1.1",
     "react-cosmos": "^7.0.0",
     "react-cosmos-plugin-vite": "^7.0.0",
@@ -31,6 +31,7 @@
     "vite": "^7.3.0"
   },
   "peerDependencies": {
-    "typescript": "^5"
+    "typescript": "^5",
+    "graphics-debug": "*"
   }
 }

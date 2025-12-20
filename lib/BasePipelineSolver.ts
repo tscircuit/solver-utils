@@ -177,21 +177,7 @@ export abstract class BasePipelineSolver<TInput> extends BaseSolver {
           const viz = solver?.visualize()
           if (!viz) return null
 
-          for (const rect of viz.rects ?? []) {
-            rect.step = stageIndex + stageStepOffset
-          }
-          for (const point of viz.points ?? []) {
-            point.step = stageIndex + stageStepOffset
-          }
-          for (const circle of viz.circles ?? []) {
-            circle.step = stageIndex + stageStepOffset
-          }
-          for (const text of viz.texts ?? []) {
-            text.step = stageIndex + stageStepOffset
-          }
-          for (const line of viz.lines ?? []) {
-            line.step = stageIndex + stageStepOffset
-          }
+          setStepOfAllObjects(viz, stageIndex + stageStepOffset)
 
           return viz
         })
@@ -205,7 +191,7 @@ export abstract class BasePipelineSolver<TInput> extends BaseSolver {
     if (this.solved && finalVisualization) {
       setStepOfAllObjects(
         finalVisualization,
-        visualizations.length + stageStepOffset,
+        visualizations.length + stageStepOffset + 1,
       )
       visualizations.push(finalVisualization)
     }

@@ -343,4 +343,97 @@ export class ExamplePipelineSolver extends BasePipelineSolver<OptimizationProble
   override getConstructorParams() {
     return [this.inputProblem]
   }
+
+  override initialVisualize(): GraphicsObject {
+    return {
+      points: [
+        {
+          x: this.inputProblem.targetX,
+          y: this.inputProblem.targetY,
+          color: "red",
+          label: "Target",
+        },
+        {
+          x: this.inputProblem.initialX,
+          y: this.inputProblem.initialY,
+          color: "green",
+          label: "Start",
+        },
+      ],
+      lines: [
+        {
+          points: [
+            { x: this.inputProblem.initialX, y: this.inputProblem.initialY },
+            { x: this.inputProblem.targetX, y: this.inputProblem.targetY },
+          ],
+          strokeColor: "gray",
+          strokeDash: "5,5",
+        },
+      ],
+      texts: [
+        {
+          x: -15,
+          y: 15,
+          text: "Initial State",
+          fontSize: 14,
+          color: "green",
+        },
+      ],
+      rects: [],
+      circles: [],
+    }
+  }
+
+  override finalVisualize(): GraphicsObject {
+    const finalPosition = this.fineTuningSolver?.getFinalPosition() ?? {
+      x: this.inputProblem.initialX,
+      y: this.inputProblem.initialY,
+    }
+    const dx = this.inputProblem.targetX - finalPosition.x
+    const dy = this.inputProblem.targetY - finalPosition.y
+    const finalDistance = Math.sqrt(dx * dx + dy * dy)
+
+    return {
+      points: [
+        {
+          x: this.inputProblem.targetX,
+          y: this.inputProblem.targetY,
+          color: "red",
+          label: "Target",
+        },
+        {
+          x: finalPosition.x,
+          y: finalPosition.y,
+          color: "green",
+          label: `Final (${finalPosition.x.toFixed(2)}, ${finalPosition.y.toFixed(2)})`,
+        },
+      ],
+      lines: [],
+      texts: [
+        {
+          x: -15,
+          y: 15,
+          text: "Optimization Complete",
+          fontSize: 14,
+          color: "green",
+        },
+        {
+          x: -15,
+          y: 12,
+          text: `Final Distance: ${finalDistance.toFixed(4)}`,
+          fontSize: 12,
+          color: "black",
+        },
+      ],
+      rects: [],
+      circles: [
+        {
+          center: { x: finalPosition.x, y: finalPosition.y },
+          radius: 0.5,
+          fill: "rgba(0, 255, 0, 0.3)",
+          stroke: "green",
+        },
+      ],
+    }
+  }
 }
