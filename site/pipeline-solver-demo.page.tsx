@@ -30,7 +30,7 @@ export default function PipelineSolverDemo() {
       }}
       onSolverCompleted={(solver) => {
         console.log("Pipeline solver completed:", solver)
-        console.log("Phase statistics:", (solver as any).getPhaseStats())
+        console.log("Phase statistics:", (solver as any).getStageStats())
       }}
     />
   )

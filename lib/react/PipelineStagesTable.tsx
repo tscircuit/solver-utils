@@ -44,7 +44,7 @@ const getStageStatus = (
   stepIndex: number,
   stepName: string,
 ): StageStatus => {
-  const currentIndex = solver.currentPipelineStepIndex
+  const currentIndex = solver.currentPipelineStageIndex
 
   if (stepIndex < currentIndex) {
     return "Completed"
@@ -74,14 +74,14 @@ const getStageInfo = (
     | Partial<BaseSolver>
     | undefined
 
-  const firstIteration = solver.firstIterationOfPhase?.[stageName] ?? null
+  const firstIteration = solver.firstIterationOfStage?.[stageName] ?? null
   const currentIteration = solver.iterations
 
   let iterations = 0
   if (status === "Completed") {
     const nextStage = solver.pipelineDef[stageIndex + 1]
     const nextStageFirstIteration = nextStage
-      ? solver.firstIterationOfPhase?.[nextStage.solverName]
+      ? solver.firstIterationOfStage?.[nextStage.solverName]
       : undefined
     if (nextStageFirstIteration !== undefined && firstIteration !== null) {
       iterations = nextStageFirstIteration - firstIteration
@@ -92,7 +92,7 @@ const getStageInfo = (
     iterations = currentIteration - firstIteration
   }
 
-  const timeSpent = solver.timeSpentOnPhase?.[stageName] ?? 0
+  const timeSpent = solver.timeSpentOnStage?.[stageName] ?? 0
 
   let progress = 0
   if (status === "Completed") {

@@ -1,4 +1,5 @@
 import type { GraphicsObject } from "graphics-debug"
+import { setStepOfAllObjects } from "graphics-debug"
 import { BaseSolver } from "./BaseSolver"
 
 export interface PipelineStep<T extends BaseSolver> {
@@ -29,12 +30,12 @@ export function definePipelineStep<
 }
 
 export abstract class BasePipelineSolver<TInput> extends BaseSolver {
-  startTimeOfPhase: Record<string, number> = {}
-  endTimeOfPhase: Record<string, number> = {}
-  timeSpentOnPhase: Record<string, number> = {}
-  firstIterationOfPhase: Record<string, number> = {}
+  startTimeOfStage: Record<string, number> = {}
+  endTimeOfStage: Record<string, number> = {}
+  timeSpentOnStage: Record<string, number> = {}
+  firstIterationOfStage: Record<string, number> = {}
 
-  currentPipelineStepIndex = 0
+  currentPipelineStageIndex = 0
   inputProblem: TInput
 
   /** Stores the outputs from each completed pipeline stage */
@@ -49,8 +50,8 @@ export abstract class BasePipelineSolver<TInput> extends BaseSolver {
   }
 
   override _step() {
-    const pipelineStepDef = this.pipelineDef[this.currentPipelineStepIndex]
-    if (!pipelineStepDef) {
+    const pipelineStageDef = this.pipelineDef[this.currentPipelineStageIndex]
+    if (!pipelineStageDef) {
       this.solved = true
       return
     }
@@ -58,20 +59,20 @@ export abstract class BasePipelineSolver<TInput> extends BaseSolver {
     if (this.activeSubSolver) {
       this.activeSubSolver.step()
       if (this.activeSubSolver.solved) {
-        this.endTimeOfPhase[pipelineStepDef.solverName] = performance.now()
-        this.timeSpentOnPhase[pipelineStepDef.solverName] =
-          this.endTimeOfPhase[pipelineStepDef.solverName]! -
-          this.startTimeOfPhase[pipelineStepDef.solverName]!
+        this.endTimeOfStage[pipelineStageDef.solverName] = performance.now()
+        this.timeSpentOnStage[pipelineStageDef.solverName] =
+          this.endTimeOfStage[pipelineStageDef.solverName]! -
+          this.startTimeOfStage[pipelineStageDef.solverName]!
 
         // Automatically store the solver's output
         const output = this.activeSubSolver.getOutput()
         if (output !== null) {
-          this.pipelineOutputs[pipelineStepDef.solverName] = output
+          this.pipelineOutputs[pipelineStageDef.solverName] = output
         }
 
-        pipelineStepDef.onSolved?.(this)
+        pipelineStageDef.onSolved?.(this)
         this.activeSubSolver = null
-        this.currentPipelineStepIndex++
+        this.currentPipelineStageIndex++
       } else if (this.activeSubSolver.failed) {
         this.error = this.activeSubSolver?.error
         this.failed = true
@@ -80,12 +81,14 @@ export abstract class BasePipelineSolver<TInput> extends BaseSolver {
       return
     }
 
-    const constructorParams = pipelineStepDef.getConstructorParams(this)
-    this.activeSubSolver = new pipelineStepDef.solverClass(...constructorParams)
-    ;(this as any)[pipelineStepDef.solverName] = this.activeSubSolver
-    this.timeSpentOnPhase[pipelineStepDef.solverName] = 0
-    this.startTimeOfPhase[pipelineStepDef.solverName] = performance.now()
-    this.firstIterationOfPhase[pipelineStepDef.solverName] = this.iterations
+    const constructorParams = pipelineStageDef.getConstructorParams(this)
+    this.activeSubSolver = new pipelineStageDef.solverClass(
+      ...constructorParams,
+    )
+    ;(this as any)[pipelineStageDef.solverName] = this.activeSubSolver
+    this.timeSpentOnStage[pipelineStageDef.solverName] = 0
+    this.startTimeOfStage[pipelineStageDef.solverName] = performance.now()
+    this.firstIterationOfStage[pipelineStageDef.solverName] = this.iterations
   }
 
   solveUntilStage(stageName: string) {
@@ -98,18 +101,20 @@ export abstract class BasePipelineSolver<TInput> extends BaseSolver {
   }
 
   getCurrentStageName(): string {
-    return this.pipelineDef[this.currentPipelineStepIndex]?.solverName ?? "none"
+    return (
+      this.pipelineDef[this.currentPipelineStageIndex]?.solverName ?? "none"
+    )
   }
 
-  getPhaseProgress(): number {
-    const totalPhases = this.pipelineDef.length
-    if (totalPhases === 0) return 1
+  getStageProgress(): number {
+    const totalStages = this.pipelineDef.length
+    if (totalStages === 0) return 1
 
-    const currentPhaseProgress = this.activeSubSolver?.progress ?? 0
-    return (this.currentPipelineStepIndex + currentPhaseProgress) / totalPhases
+    const currentStageProgress = this.activeSubSolver?.progress ?? 0
+    return (this.currentPipelineStageIndex + currentStageProgress) / totalStages
   }
 
-  getPhaseStats(): Record<
+  getStageStats(): Record<
     string,
     {
       timeSpent: number
@@ -119,19 +124,19 @@ export abstract class BasePipelineSolver<TInput> extends BaseSolver {
   > {
     const stats: Record<string, any> = {}
 
-    for (const step of this.pipelineDef) {
-      const timeSpent = this.timeSpentOnPhase[step.solverName] || 0
-      const firstIteration = this.firstIterationOfPhase[step.solverName] || 0
+    for (const stage of this.pipelineDef) {
+      const timeSpent = this.timeSpentOnStage[stage.solverName] || 0
+      const firstIteration = this.firstIterationOfStage[stage.solverName] || 0
       const currentIteration = this.iterations
       const iterations =
-        step.solverName === this.getCurrentStageName()
+        stage.solverName === this.getCurrentStageName()
           ? currentIteration - firstIteration
           : 0
       const completed =
-        this.currentPipelineStepIndex >
-        this.pipelineDef.findIndex((s) => s.solverName === step.solverName)
+        this.currentPipelineStageIndex >
+        this.pipelineDef.findIndex((s) => s.solverName === stage.solverName)
 
-      stats[step.solverName] = {
+      stats[stage.solverName] = {
         timeSpent,
         iterations,
         completed,
@@ -141,39 +146,54 @@ export abstract class BasePipelineSolver<TInput> extends BaseSolver {
     return stats
   }
 
+  initialVisualize(): GraphicsObject | null {
+    return null
+  }
+  finalVisualize(): GraphicsObject | null {
+    return null
+  }
+
   override visualize(): GraphicsObject {
     if (!this.solved && this.activeSubSolver) {
       return this.activeSubSolver.visualize()
     }
 
-    const visualizations = this.pipelineDef
-      .map((step, stepIndex) => {
-        const solver = (this as any)[step.solverName]
-        const viz = solver?.visualize()
-        if (!viz) return null
+    let stageStepOffset = 0
+    const initialVisualization = this.initialVisualize()
+    if (initialVisualization) {
+      setStepOfAllObjects(initialVisualization, 0)
+      stageStepOffset = 1
+    }
 
-        for (const rect of viz.rects ?? []) {
-          rect.step = stepIndex
-        }
-        for (const point of viz.points ?? []) {
-          point.step = stepIndex
-        }
-        for (const circle of viz.circles ?? []) {
-          circle.step = stepIndex
-        }
-        for (const text of viz.texts ?? []) {
-          text.step = stepIndex
-        }
-        for (const line of viz.lines ?? []) {
-          line.step = stepIndex
-        }
+    let finalVisualization: GraphicsObject | null = null
+    if (this.solved) {
+      finalVisualization = this.finalVisualize()
+    }
 
-        return viz
-      })
-      .filter(Boolean) as GraphicsObject[]
+    const visualizations = [initialVisualization!].filter(Boolean).concat(
+      this.pipelineDef
+        .map((stage, stageIndex) => {
+          const solver = (this as any)[stage.solverName]
+          const viz = solver?.visualize()
+          if (!viz) return null
+
+          setStepOfAllObjects(viz, stageIndex + stageStepOffset)
+
+          return viz
+        })
+        .filter(Boolean) as GraphicsObject[],
+    )
 
     if (visualizations.length === 0) {
       return { points: [], rects: [], lines: [], circles: [], texts: [] }
+    }
+
+    if (this.solved && finalVisualization) {
+      setStepOfAllObjects(
+        finalVisualization,
+        visualizations.length + stageStepOffset + 1,
+      )
+      visualizations.push(finalVisualization)
     }
 
     if (visualizations.length === 1) {
@@ -198,7 +218,7 @@ export abstract class BasePipelineSolver<TInput> extends BaseSolver {
   }
 
   computeProgress(): number {
-    return this.getPhaseProgress()
+    return this.getStageProgress()
   }
 
   /**
