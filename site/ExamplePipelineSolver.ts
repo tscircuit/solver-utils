@@ -164,7 +164,12 @@ class MediumPositioningSolver extends BaseSolver {
   }
 
   override getConstructorParams() {
-    return [{ problem: this.problem, startPosition: { x: this.currentX, y: this.currentY } }]
+    return [
+      {
+        problem: this.problem,
+        startPosition: { x: this.currentX, y: this.currentY },
+      },
+    ]
   }
 
   getFinalPosition() {
@@ -206,8 +211,12 @@ class MicroPositioningSolver extends BaseSolver {
     const randomAngle = Math.random() * 2 * Math.PI
     const explorationStrength = 0.1
 
-    this.currentX += (dx / (distance + 0.001)) * this.stepSize + Math.cos(randomAngle) * this.stepSize * explorationStrength
-    this.currentY += (dy / (distance + 0.001)) * this.stepSize + Math.sin(randomAngle) * this.stepSize * explorationStrength
+    this.currentX +=
+      (dx / (distance + 0.001)) * this.stepSize +
+      Math.cos(randomAngle) * this.stepSize * explorationStrength
+    this.currentY +=
+      (dy / (distance + 0.001)) * this.stepSize +
+      Math.sin(randomAngle) * this.stepSize * explorationStrength
 
     this.stats = {
       distanceToTarget: distance.toFixed(3),
@@ -230,7 +239,12 @@ class MicroPositioningSolver extends BaseSolver {
   }
 
   override getConstructorParams() {
-    return [{ problem: this.problem, startPosition: { x: this.currentX, y: this.currentY } }]
+    return [
+      {
+        problem: this.problem,
+        startPosition: { x: this.currentX, y: this.currentY },
+      },
+    ]
   }
 
   getFinalPosition() {
@@ -281,7 +295,10 @@ class TwoPhaseFineTuningSolver extends BasePipelineSolver<FineTuningInput> {
   }
 
   getFinalPosition() {
-    return this.microPositioningSolver?.getFinalPosition() ?? this.inputProblem.startPosition
+    return (
+      this.microPositioningSolver?.getFinalPosition() ??
+      this.inputProblem.startPosition
+    )
   }
 }
 

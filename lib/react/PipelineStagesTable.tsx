@@ -18,7 +18,11 @@ interface PipelineStagesTableProps {
 const isPipelineSolver = (
   solver: BaseSolver | null,
 ): solver is BasePipelineSolver<any> => {
-  return solver !== null && "pipelineDef" in solver && Array.isArray((solver as any).pipelineDef)
+  return (
+    solver !== null &&
+    "pipelineDef" in solver &&
+    Array.isArray((solver as any).pipelineDef)
+  )
 }
 
 type StageStatus = "Not Started" | "In Progress" | "Completed" | "Failed"
@@ -320,7 +324,9 @@ export const PipelineStagesTable = ({
     <div className={isNested ? "" : "border-t border-gray-200"}>
       {!isNested && (
         <div className="px-4 py-2 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-gray-700">Pipeline Stages</h3>
+          <h3 className="text-sm font-semibold text-gray-700">
+            Pipeline Stages
+          </h3>
           <div className="flex gap-2">
             <button
               onClick={handleNextSolver}
@@ -434,9 +440,13 @@ export const PipelineStagesTable = ({
                       <StatusBadge status={stage.status} />
                     </td>
                     <td className="px-4 py-2 text-center text-gray-600">
-                      {stage.firstIteration !== null ? stage.firstIteration : ""}
+                      {stage.firstIteration !== null
+                        ? stage.firstIteration
+                        : ""}
                     </td>
-                    <td className="px-4 py-2 text-gray-600">{stage.iterations}</td>
+                    <td className="px-4 py-2 text-gray-600">
+                      {stage.iterations}
+                    </td>
                     <td className="px-4 py-2">
                       <ProgressBar progress={stage.progress} />
                     </td>
@@ -474,7 +484,9 @@ export const PipelineStagesTable = ({
                     <tr>
                       <td colSpan={8} className="p-0">
                         <PipelineStagesTable
-                          solver={stage.solverInstance as BasePipelineSolver<any>}
+                          solver={
+                            stage.solverInstance as BasePipelineSolver<any>
+                          }
                           onStepUntilPhase={onStepUntilPhase}
                           onDownloadInput={onDownloadInput}
                           isNested={true}
