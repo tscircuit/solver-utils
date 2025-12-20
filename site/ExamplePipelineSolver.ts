@@ -1,6 +1,7 @@
 import {
   BasePipelineSolver,
   definePipelineStep,
+  type PipelineStep,
 } from "../lib/BasePipelineSolver"
 import { BaseSolver } from "../lib/BaseSolver"
 import type { GraphicsObject } from "graphics-debug"
@@ -110,12 +111,12 @@ class CoarsePositioningSolver extends BaseSolver {
 }
 
 /**
- * Second stage: Fine positioning using small steps
+ * Sub-stage for medium positioning (part of TwoPhaseFineTuningSolver pipeline)
  */
-class FinePositioningSolver extends BaseSolver {
-  private currentX: number
-  private currentY: number
-  private stepSize = 0.5
+class MediumPositioningSolver extends BaseSolver {
+  currentX: number
+  currentY: number
+  private stepSize = 1.0
   private problem: OptimizationProblem
 
   constructor(params: {
@@ -126,93 +127,37 @@ class FinePositioningSolver extends BaseSolver {
     this.problem = params.problem
     this.currentX = params.startPosition.x
     this.currentY = params.startPosition.y
-    this.MAX_ITERATIONS = 100
+    this.MAX_ITERATIONS = 50
   }
 
   override _step() {
-    // Fine-tuned positioning with small random perturbations
     const dx = this.problem.targetX - this.currentX
     const dy = this.problem.targetY - this.currentY
     const distance = Math.sqrt(dx * dx + dy * dy)
 
-    if (distance < 0.1) {
+    if (distance < 0.5) {
       this.solved = true
       return
     }
 
-    // Add some random exploration
-    const randomAngle = Math.random() * 2 * Math.PI
-    const explorationStrength = 0.2
-
-    const moveX =
-      (dx / (distance + 0.001)) * this.stepSize +
-      Math.cos(randomAngle) * this.stepSize * explorationStrength
-    const moveY =
-      (dy / (distance + 0.001)) * this.stepSize +
-      Math.sin(randomAngle) * this.stepSize * explorationStrength
-
-    this.currentX += moveX
-    this.currentY += moveY
+    this.currentX += (dx / distance) * this.stepSize
+    this.currentY += (dy / distance) * this.stepSize
 
     this.stats = {
-      currentX: this.currentX,
-      currentY: this.currentY,
-      distanceToTarget: distance,
-      stepSize: this.stepSize,
+      distanceToTarget: distance.toFixed(2),
     }
 
-    // Gradually reduce step size
-    this.stepSize *= 0.99
+    this.stepSize *= 0.97
   }
 
   override visualize(): GraphicsObject {
     return {
       points: [
-        {
-          x: this.problem.targetX,
-          y: this.problem.targetY,
-          color: "red",
-          label: "Target",
-        },
-        {
-          x: this.currentX,
-          y: this.currentY,
-          color: "green",
-          label: `Fine (${this.currentX.toFixed(2)}, ${this.currentY.toFixed(2)})`,
-        },
+        { x: this.problem.targetX, y: this.problem.targetY, color: "red" },
+        { x: this.currentX, y: this.currentY, color: "orange" },
       ],
-      lines: [
-        {
-          points: [
-            {
-              x: this.currentX,
-              y: this.currentY,
-            },
-            {
-              x: this.problem.targetX,
-              y: this.problem.targetY,
-            },
-          ],
-          strokeColor: "green",
-          strokeWidth: 1,
-        },
-      ],
-      texts: [
-        {
-          x: -15,
-          y: 15,
-          text: `Phase 2: Fine Positioning`,
-          fontSize: 14,
-          color: "green",
-        },
-        {
-          x: -15,
-          y: 12,
-          text: `Distance: ${this.stats.distanceToTarget?.toFixed(3) || "N/A"}`,
-          fontSize: 12,
-          color: "black",
-        },
-      ],
+      lines: [],
+      texts: [{ x: -15, y: 15, text: "Medium Positioning", color: "orange" }],
       rects: [],
       circles: [],
     }
@@ -226,14 +171,144 @@ class FinePositioningSolver extends BaseSolver {
       },
     ]
   }
+
+  getFinalPosition() {
+    return { x: this.currentX, y: this.currentY }
+  }
+}
+
+/**
+ * Sub-stage for micro positioning (part of TwoPhaseFineTuningSolver pipeline)
+ */
+class MicroPositioningSolver extends BaseSolver {
+  currentX: number
+  currentY: number
+  private stepSize = 0.2
+  private problem: OptimizationProblem
+
+  constructor(params: {
+    problem: OptimizationProblem
+    startPosition: { x: number; y: number }
+  }) {
+    super()
+    this.problem = params.problem
+    this.currentX = params.startPosition.x
+    this.currentY = params.startPosition.y
+    this.MAX_ITERATIONS = 50
+  }
+
+  override _step() {
+    const dx = this.problem.targetX - this.currentX
+    const dy = this.problem.targetY - this.currentY
+    const distance = Math.sqrt(dx * dx + dy * dy)
+
+    if (distance < 0.1) {
+      this.solved = true
+      return
+    }
+
+    // Add some random exploration
+    const randomAngle = Math.random() * 2 * Math.PI
+    const explorationStrength = 0.1
+
+    this.currentX +=
+      (dx / (distance + 0.001)) * this.stepSize +
+      Math.cos(randomAngle) * this.stepSize * explorationStrength
+    this.currentY +=
+      (dy / (distance + 0.001)) * this.stepSize +
+      Math.sin(randomAngle) * this.stepSize * explorationStrength
+
+    this.stats = {
+      distanceToTarget: distance.toFixed(3),
+    }
+
+    this.stepSize *= 0.98
+  }
+
+  override visualize(): GraphicsObject {
+    return {
+      points: [
+        { x: this.problem.targetX, y: this.problem.targetY, color: "red" },
+        { x: this.currentX, y: this.currentY, color: "purple" },
+      ],
+      lines: [],
+      texts: [{ x: -15, y: 15, text: "Micro Positioning", color: "purple" }],
+      rects: [],
+      circles: [],
+    }
+  }
+
+  override getConstructorParams() {
+    return [
+      {
+        problem: this.problem,
+        startPosition: { x: this.currentX, y: this.currentY },
+      },
+    ]
+  }
+
+  getFinalPosition() {
+    return { x: this.currentX, y: this.currentY }
+  }
+}
+
+interface FineTuningInput {
+  problem: OptimizationProblem
+  startPosition: { x: number; y: number }
+}
+
+/**
+ * Second stage: A nested pipeline solver for fine positioning
+ * This demonstrates pipelines within pipelines
+ */
+class TwoPhaseFineTuningSolver extends BasePipelineSolver<FineTuningInput> {
+  mediumPositioningSolver?: MediumPositioningSolver
+  microPositioningSolver?: MicroPositioningSolver
+
+  pipelineDef: PipelineStep<any>[] = [
+    definePipelineStep(
+      "mediumPositioningSolver",
+      MediumPositioningSolver,
+      (instance: TwoPhaseFineTuningSolver) => [
+        {
+          problem: instance.inputProblem.problem,
+          startPosition: instance.inputProblem.startPosition,
+        },
+      ],
+    ),
+    definePipelineStep(
+      "microPositioningSolver",
+      MicroPositioningSolver,
+      (instance: TwoPhaseFineTuningSolver) => [
+        {
+          problem: instance.inputProblem.problem,
+          startPosition: instance
+            .getSolver<MediumPositioningSolver>("mediumPositioningSolver")!
+            .getFinalPosition(),
+        },
+      ],
+    ),
+  ]
+
+  override getConstructorParams() {
+    return [this.inputProblem]
+  }
+
+  getFinalPosition() {
+    return (
+      this.microPositioningSolver?.getFinalPosition() ??
+      this.inputProblem.startPosition
+    )
+  }
 }
 
 /**
  * Example pipeline solver demonstrating multi-stage optimization
+ * with a nested pipeline as one of the stages
  */
 export class ExamplePipelineSolver extends BasePipelineSolver<OptimizationProblem> {
   coarsePositioningSolver?: CoarsePositioningSolver
-  finePositioningSolver?: FinePositioningSolver
+  fineTuningSolver?: TwoPhaseFineTuningSolver
 
   pipelineDef = [
     definePipelineStep(
@@ -247,8 +322,8 @@ export class ExamplePipelineSolver extends BasePipelineSolver<OptimizationProble
       },
     ),
     definePipelineStep(
-      "finePositioningSolver",
-      FinePositioningSolver,
+      "fineTuningSolver",
+      TwoPhaseFineTuningSolver,
       (instance) => [
         {
           problem: instance.inputProblem,
@@ -259,7 +334,7 @@ export class ExamplePipelineSolver extends BasePipelineSolver<OptimizationProble
       ],
       {
         onSolved: (instance) => {
-          console.log("Fine positioning completed - pipeline solved!")
+          console.log("Fine tuning pipeline completed - all done!")
         },
       },
     ),

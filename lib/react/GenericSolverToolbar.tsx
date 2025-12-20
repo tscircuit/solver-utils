@@ -1,6 +1,5 @@
 import React, { useReducer, useRef, useEffect } from "react"
 import type { BaseSolver } from "../BaseSolver"
-import type { BasePipelineSolver } from "../BasePipelineSolver"
 import { SolverBreadcrumbInputDownloader } from "./SolverBreadcrumbInputDownloader"
 
 export interface GenericSolverToolbarProps {
@@ -69,23 +68,6 @@ export const GenericSolverToolbar = ({
     }
   }
 
-  const handleNextStage = () => {
-    const pipelineSolver = solver as BasePipelineSolver<any>
-    if (pipelineSolver.getCurrentPhase && !solver.solved && !solver.failed) {
-      const initialPhase = pipelineSolver.getCurrentPhase()
-
-      // Step until we get to a different phase or solve/fail
-      while (
-        pipelineSolver.getCurrentPhase() === initialPhase &&
-        !solver.solved &&
-        !solver.failed
-      ) {
-        solver.step()
-      }
-      triggerRender()
-    }
-  }
-
   const handleStepUntilIteration = () => {
     if (solver.solved || solver.failed || isAnimating) return
 
@@ -137,11 +119,6 @@ export const GenericSolverToolbar = ({
     }
   }, [solver.solved, solver.failed, isAnimating])
 
-  const isPipelineSolver = (solver as any).getCurrentPhase !== undefined
-  const currentPhase = isPipelineSolver
-    ? (solver as BasePipelineSolver<any>).getCurrentPhase()
-    : null
-
   return (
     <div className="space-y-2 p-2 border-b">
       <div className="flex items-center">
@@ -184,16 +161,6 @@ export const GenericSolverToolbar = ({
           Step Until Iteration
         </button>
 
-        {isPipelineSolver && (
-          <button
-            onClick={handleNextStage}
-            disabled={solver.solved || solver.failed || isAnimating}
-            className="bg-purple-500 hover:bg-purple-600 disabled:bg-gray-300 text-white px-3 py-1 rounded text-sm"
-          >
-            Next Stage
-          </button>
-        )}
-
         <div className="text-sm text-gray-600">
           Iterations: {solver.iterations}
         </div>
@@ -201,12 +168,6 @@ export const GenericSolverToolbar = ({
         {solver.timeToSolve !== undefined && (
           <div className="text-sm text-gray-600">
             Time: {(solver.timeToSolve / 1000).toFixed(3)}s
-          </div>
-        )}
-
-        {currentPhase && (
-          <div className="text-sm text-gray-600">
-            Phase: <span className="font-medium">{currentPhase}</span>
           </div>
         )}
 
