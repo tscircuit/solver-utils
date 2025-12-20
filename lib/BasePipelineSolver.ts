@@ -1,4 +1,5 @@
 import type { GraphicsObject } from "graphics-debug"
+import { setStepOfAllObjects } from "graphics-debug"
 import { BaseSolver } from "./BaseSolver"
 
 export interface PipelineStep<T extends BaseSolver> {
@@ -145,39 +146,68 @@ export abstract class BasePipelineSolver<TInput> extends BaseSolver {
     return stats
   }
 
+  initialVisualize(): GraphicsObject | null {
+    return null
+  }
+  finalVisualize(): GraphicsObject | null {
+    return null
+  }
+
   override visualize(): GraphicsObject {
     if (!this.solved && this.activeSubSolver) {
       return this.activeSubSolver.visualize()
     }
 
-    const visualizations = this.pipelineDef
-      .map((stage, stageIndex) => {
-        const solver = (this as any)[stage.solverName]
-        const viz = solver?.visualize()
-        if (!viz) return null
+    let stageStepOffset = 0
+    const initialVisualization = this.initialVisualize()
+    if (initialVisualization) {
+      setStepOfAllObjects(initialVisualization, 0)
+      stageStepOffset = 1
+    }
 
-        for (const rect of viz.rects ?? []) {
-          rect.step = stageIndex
-        }
-        for (const point of viz.points ?? []) {
-          point.step = stageIndex
-        }
-        for (const circle of viz.circles ?? []) {
-          circle.step = stageIndex
-        }
-        for (const text of viz.texts ?? []) {
-          text.step = stageIndex
-        }
-        for (const line of viz.lines ?? []) {
-          line.step = stageIndex
-        }
+    let finalVisualization: GraphicsObject | null = null
+    if (this.solved) {
+      finalVisualization = this.finalVisualize()
+    }
 
-        return viz
-      })
-      .filter(Boolean) as GraphicsObject[]
+    const visualizations = [initialVisualization!].filter(Boolean).concat(
+      this.pipelineDef
+        .map((stage, stageIndex) => {
+          const solver = (this as any)[stage.solverName]
+          const viz = solver?.visualize()
+          if (!viz) return null
+
+          for (const rect of viz.rects ?? []) {
+            rect.step = stageIndex + stageStepOffset
+          }
+          for (const point of viz.points ?? []) {
+            point.step = stageIndex + stageStepOffset
+          }
+          for (const circle of viz.circles ?? []) {
+            circle.step = stageIndex + stageStepOffset
+          }
+          for (const text of viz.texts ?? []) {
+            text.step = stageIndex + stageStepOffset
+          }
+          for (const line of viz.lines ?? []) {
+            line.step = stageIndex + stageStepOffset
+          }
+
+          return viz
+        })
+        .filter(Boolean) as GraphicsObject[],
+    )
 
     if (visualizations.length === 0) {
       return { points: [], rects: [], lines: [], circles: [], texts: [] }
+    }
+
+    if (this.solved && finalVisualization) {
+      setStepOfAllObjects(
+        finalVisualization,
+        visualizations.length + stageStepOffset,
+      )
+      visualizations.push(finalVisualization)
     }
 
     if (visualizations.length === 1) {
