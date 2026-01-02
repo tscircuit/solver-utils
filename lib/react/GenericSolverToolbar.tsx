@@ -19,6 +19,8 @@ export const GenericSolverToolbar = ({
 }: GenericSolverToolbarProps) => {
   const [isAnimating, setIsAnimating] = useReducer((x) => !x, false)
   const animationRef = useRef<NodeJS.Timeout | undefined>(undefined)
+  const lastIterationInputRef = useRef<string | null>(null)
+  const lastIterationStorageKey = "solver-debugger-last-iteration"
 
   const handleStep = () => {
     if (!solver.solved && !solver.failed) {
@@ -71,12 +73,26 @@ export const GenericSolverToolbar = ({
   const handleStepUntilIteration = () => {
     if (solver.solved || solver.failed || isAnimating) return
 
+    if (
+      lastIterationInputRef.current === null &&
+      typeof window !== "undefined"
+    ) {
+      lastIterationInputRef.current = window.localStorage.getItem(
+        lastIterationStorageKey,
+      )
+    }
+
     const targetIterationInput = window.prompt(
       "Step until which iteration?",
-      `${solver.iterations}`,
+      lastIterationInputRef.current ?? `${solver.iterations}`,
     )
 
     if (targetIterationInput === null) return
+
+    lastIterationInputRef.current = targetIterationInput
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(lastIterationStorageKey, targetIterationInput)
+    }
 
     const targetIteration = Number(targetIterationInput)
 
