@@ -74,7 +74,9 @@ const getStageInfo = (
     | Partial<BaseSolver>
     | undefined
 
-  const firstIteration = solver.firstIterationOfStage?.[stageName] ?? null
+  const firstIteration =
+    solver.firstIterationOfStage?.[stageName] ??
+    (stageIndex === solver.currentPipelineStageIndex ? solver.iterations : null)
   const currentIteration = solver.iterations
 
   let iterations = 0
@@ -145,9 +147,33 @@ const ProgressBar = ({ progress }: { progress: number }) => {
   )
 }
 
+const stringifyStatValue = (value: unknown): string => {
+  if (typeof value === "string") {
+    return value
+  }
+  if (
+    typeof value === "number" ||
+    typeof value === "boolean" ||
+    typeof value === "bigint" ||
+    value == null
+  ) {
+    return String(value)
+  }
+
+  if (typeof value === "object") {
+    try {
+      return JSON.stringify(value)
+    } catch {
+      return String(value)
+    }
+  }
+
+  return String(value)
+}
+
 const formatStatsLine = (stats: Record<string, any>): string => {
   return Object.entries(stats)
-    .map(([key, value]) => `${key}: ${value}`)
+    .map(([key, value]) => `${key}: ${stringifyStatValue(value)}`)
     .join(", ")
 }
 
@@ -167,7 +193,7 @@ const StatsCell = ({ stats }: { stats: Record<string, any> | null }) => {
       <div className="mt-1 text-xs">
         {entries.map(([key, value]) => (
           <div key={key}>
-            {key}: {String(value)}
+            {key}: {stringifyStatValue(value)}
           </div>
         ))}
       </div>
