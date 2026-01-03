@@ -1,7 +1,10 @@
 import React, { useEffect, useMemo, useReducer, useState } from "react"
 import type { BaseSolver } from "../BaseSolver"
 import type { BasePipelineSolver } from "../BasePipelineSolver"
-import { InteractiveGraphics } from "graphics-debug/react"
+import {
+  InteractiveGraphics,
+  InteractiveGraphicsCanvas,
+} from "graphics-debug/react"
 import { GenericSolverToolbar } from "./GenericSolverToolbar"
 import { PipelineStagesTable } from "./PipelineStagesTable"
 import { SimpleGraphicsSVG } from "./SimpleGraphicsSVG"
@@ -45,6 +48,9 @@ export const GenericSolverDebugger = ({
   onSolverCompleted,
 }: GenericSolverDebuggerProps) => {
   const [renderCount, incRenderCount] = useReducer((x) => x + 1, 0)
+  const [currentAnimationSpeed, setCurrentAnimationSpeed] =
+    useState(animationSpeed)
+  const [renderer, setRenderer] = useState<"vector" | "canvas">("vector")
   const [solver] = useState<BaseSolver>(() => {
     if (createSolver) {
       return createSolver()
@@ -90,6 +96,10 @@ export const GenericSolverDebugger = ({
 
   const isPipelineSolver = (solver as any).pipelineDef !== undefined
 
+  useEffect(() => {
+    setCurrentAnimationSpeed(animationSpeed)
+  }, [animationSpeed])
+
   const handleStepUntilPhase = (phaseName: string) => {
     const pipelineSolver = solver as BasePipelineSolver<any>
     if (!solver.solved && !solver.failed) {
@@ -113,9 +123,31 @@ export const GenericSolverDebugger = ({
       <GenericSolverToolbar
         solver={solver}
         triggerRender={incRenderCount}
-        animationSpeed={animationSpeed}
+        animationSpeed={currentAnimationSpeed}
         onSolverStarted={onSolverStarted}
         onSolverCompleted={onSolverCompleted}
+        renderer={renderer}
+        onRendererChange={setRenderer}
+        onAnimationSpeedChange={setCurrentAnimationSpeed}
+        onDownloadVisualization={() => {
+          try {
+            const visualizationSnapshot = solver.visualize()
+            const blob = new Blob(
+              [JSON.stringify(visualizationSnapshot, null, 2)],
+              { type: "application/json" },
+            )
+            const url = URL.createObjectURL(blob)
+            const a = document.createElement("a")
+            a.href = url
+            a.download = `${solver.constructor.name}_visualization.json`
+            a.click()
+            URL.revokeObjectURL(url)
+          } catch (error) {
+            alert(
+              `Error downloading visualization: ${error instanceof Error ? error.message : String(error)}`,
+            )
+          }
+        }}
       />
       {graphicsAreEmpty ? (
         <div className="p-4 text-gray-500">No Graphics Yet</div>
@@ -125,7 +157,11 @@ export const GenericSolverDebugger = ({
             <SimpleGraphicsSVG graphics={visualization as GraphicsObject} />
           }
         >
-          <InteractiveGraphics graphics={visualization} />
+          {renderer === "canvas" ? (
+            <InteractiveGraphicsCanvas graphics={visualization} />
+          ) : (
+            <InteractiveGraphics graphics={visualization} />
+          )}
         </ErrorBoundary>
       )}
       {isPipelineSolver && (

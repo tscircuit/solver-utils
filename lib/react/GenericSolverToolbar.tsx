@@ -1,6 +1,7 @@
 import React, { useReducer, useRef, useEffect } from "react"
 import type { BaseSolver } from "../BaseSolver"
 import { SolverBreadcrumbInputDownloader } from "./SolverBreadcrumbInputDownloader"
+import { SolverContextMenu } from "./SolverContextMenu"
 
 export interface GenericSolverToolbarProps {
   solver: BaseSolver
@@ -8,6 +9,10 @@ export interface GenericSolverToolbarProps {
   animationSpeed?: number
   onSolverStarted?: (solver: BaseSolver) => void
   onSolverCompleted?: (solver: BaseSolver) => void
+  renderer?: "vector" | "canvas"
+  onRendererChange?: (renderer: "vector" | "canvas") => void
+  onAnimationSpeedChange?: (speed: number) => void
+  onDownloadVisualization?: () => void
 }
 
 export const GenericSolverToolbar = ({
@@ -16,6 +21,10 @@ export const GenericSolverToolbar = ({
   animationSpeed = 25,
   onSolverStarted,
   onSolverCompleted,
+  renderer = "vector",
+  onRendererChange = () => {},
+  onAnimationSpeedChange = () => {},
+  onDownloadVisualization = () => {},
 }: GenericSolverToolbarProps) => {
   const [isAnimating, setIsAnimating] = useReducer((x) => !x, false)
   const animationRef = useRef<NodeJS.Timeout | undefined>(undefined)
@@ -42,6 +51,25 @@ export const GenericSolverToolbar = ({
     }
   }
 
+  const startAnimation = () => {
+    animationRef.current = setInterval(() => {
+      if (solver.solved || solver.failed) {
+        if (animationRef.current) {
+          clearInterval(animationRef.current)
+          animationRef.current = undefined
+        }
+        setIsAnimating()
+        triggerRender()
+        if (onSolverCompleted && solver.solved) {
+          onSolverCompleted(solver)
+        }
+        return
+      }
+      solver.step()
+      triggerRender()
+    }, animationSpeed)
+  }
+
   const handleAnimate = () => {
     if (isAnimating) {
       if (animationRef.current) {
@@ -51,22 +79,7 @@ export const GenericSolverToolbar = ({
       setIsAnimating()
     } else {
       setIsAnimating()
-      animationRef.current = setInterval(() => {
-        if (solver.solved || solver.failed) {
-          if (animationRef.current) {
-            clearInterval(animationRef.current)
-            animationRef.current = undefined
-          }
-          setIsAnimating()
-          triggerRender()
-          if (onSolverCompleted && solver.solved) {
-            onSolverCompleted(solver)
-          }
-          return
-        }
-        solver.step()
-        triggerRender()
-      }, animationSpeed)
+      startAnimation()
     }
   }
 
@@ -135,9 +148,30 @@ export const GenericSolverToolbar = ({
     }
   }, [solver.solved, solver.failed, isAnimating])
 
+  useEffect(() => {
+    if (!isAnimating) return
+    if (animationRef.current) {
+      clearInterval(animationRef.current)
+    }
+    startAnimation()
+    return () => {
+      if (animationRef.current) {
+        clearInterval(animationRef.current)
+        animationRef.current = undefined
+      }
+    }
+  }, [animationSpeed, isAnimating])
+
   return (
     <div className="space-y-2 p-2 border-b">
       <div className="flex items-center">
+        <SolverContextMenu
+          renderer={renderer}
+          onRendererChange={onRendererChange}
+          animationSpeed={animationSpeed}
+          onAnimationSpeedChange={onAnimationSpeedChange}
+          onDownloadVisualization={onDownloadVisualization}
+        />
         <SolverBreadcrumbInputDownloader solver={solver} />
       </div>
       <div className="flex gap-2 items-center flex-wrap">
