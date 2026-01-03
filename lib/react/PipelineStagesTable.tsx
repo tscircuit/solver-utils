@@ -314,15 +314,17 @@ export const PipelineStagesTable = ({
 
   const handleNextStage = () => {
     if (!solver.solved && !solver.failed) {
-      const initialPhase = solver.getCurrentStageName()
+      const initialActiveSubSolver = solver.activeSubSolver
 
-      // Step until we get to a different phase or solve/fail
-      while (
-        solver.getCurrentStageName() === initialPhase &&
-        !solver.solved &&
-        !solver.failed
-      ) {
+      // Step until the activeSubSolver is defined and different from the last one
+      while (!solver.solved && !solver.failed) {
         solver.step()
+        if (
+          solver.activeSubSolver &&
+          solver.activeSubSolver !== initialActiveSubSolver
+        ) {
+          break
+        }
       }
       triggerRender?.()
     }

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useReducer } from "react"
+import React, { useEffect, useMemo, useReducer, useState } from "react"
 import type { BaseSolver } from "../BaseSolver"
 import type { BasePipelineSolver } from "../BasePipelineSolver"
 import { InteractiveGraphics } from "graphics-debug/react"
@@ -30,19 +30,30 @@ class ErrorBoundary extends React.Component<
 }
 
 export interface GenericSolverDebuggerProps {
-  solver: BaseSolver
+  solver?: BaseSolver
+  createSolver?: () => BaseSolver
   animationSpeed?: number
   onSolverStarted?: (solver: BaseSolver) => void
   onSolverCompleted?: (solver: BaseSolver) => void
 }
 
 export const GenericSolverDebugger = ({
-  solver,
+  solver: solverProp,
+  createSolver,
   animationSpeed = 25,
   onSolverStarted,
   onSolverCompleted,
 }: GenericSolverDebuggerProps) => {
   const [renderCount, incRenderCount] = useReducer((x) => x + 1, 0)
+  const [solver] = useState<BaseSolver>(() => {
+    if (createSolver) {
+      return createSolver()
+    }
+    if (!solverProp) {
+      throw new Error("GenericSolverDebugger requires solver or createSolver")
+    }
+    return solverProp
+  })
 
   const visualization = useMemo(() => {
     try {
