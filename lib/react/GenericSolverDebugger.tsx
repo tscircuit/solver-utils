@@ -1,7 +1,10 @@
 import React, { useEffect, useMemo, useReducer, useState } from "react"
 import type { BaseSolver } from "../BaseSolver"
 import type { BasePipelineSolver } from "../BasePipelineSolver"
-import { InteractiveGraphics } from "graphics-debug/react"
+import {
+  InteractiveGraphics,
+  InteractiveGraphicsCanvas,
+} from "graphics-debug/react"
 import { GenericSolverToolbar } from "./GenericSolverToolbar"
 import { PipelineStagesTable } from "./PipelineStagesTable"
 import { SimpleGraphicsSVG } from "./SimpleGraphicsSVG"
@@ -54,6 +57,13 @@ export const GenericSolverDebugger = ({
     }
     return solverProp
   })
+  const [renderer, setRenderer] = useState<"vector" | "canvas">(() => {
+    if (typeof window === "undefined") return "vector"
+    const stored = window.localStorage.getItem("solver-utils-renderer")
+    return stored === "canvas" ? "canvas" : "vector"
+  })
+  const [currentAnimationSpeed, setCurrentAnimationSpeed] =
+    useState(animationSpeed)
 
   const visualization = useMemo(() => {
     try {
@@ -88,6 +98,10 @@ export const GenericSolverDebugger = ({
     }
   }, [])
 
+  useEffect(() => {
+    setCurrentAnimationSpeed(animationSpeed)
+  }, [animationSpeed])
+
   const isPipelineSolver = (solver as any).pipelineDef !== undefined
 
   const handleStepUntilPhase = (phaseName: string) => {
@@ -108,12 +122,38 @@ export const GenericSolverDebugger = ({
     }
   }
 
+  const handleDownloadVisualization = () => {
+    const visualizationJson = JSON.stringify(visualization, null, 2)
+    const blob = new Blob([visualizationJson], {
+      type: "application/json",
+    })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.download = "visualization.json"
+    a.href = url
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
+
+  const handleRendererChange = (nextRenderer: "vector" | "canvas") => {
+    setRenderer(nextRenderer)
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("solver-utils-renderer", nextRenderer)
+    }
+  }
+
   return (
     <div>
       <GenericSolverToolbar
         solver={solver}
         triggerRender={incRenderCount}
-        animationSpeed={animationSpeed}
+        animationSpeed={currentAnimationSpeed}
+        renderer={renderer}
+        onRendererChange={handleRendererChange}
+        onAnimationSpeedChange={setCurrentAnimationSpeed}
+        onDownloadVisualization={handleDownloadVisualization}
         onSolverStarted={onSolverStarted}
         onSolverCompleted={onSolverCompleted}
       />
@@ -125,7 +165,11 @@ export const GenericSolverDebugger = ({
             <SimpleGraphicsSVG graphics={visualization as GraphicsObject} />
           }
         >
-          <InteractiveGraphics graphics={visualization} />
+          {renderer === "canvas" ? (
+            <InteractiveGraphicsCanvas graphics={visualization} />
+          ) : (
+            <InteractiveGraphics graphics={visualization} />
+          )}
         </ErrorBoundary>
       )}
       {isPipelineSolver && (
