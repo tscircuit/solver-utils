@@ -21,7 +21,7 @@ export const SolverBreadcrumbInputDownloader = ({
   return (
     <div className="flex gap-1 items-center text-sm pt-1">
       {solverChain.map((s, index) => (
-        <div key={s.constructor.name} className="flex items-center">
+        <div key={s.getSolverName()} className="flex items-center">
           {index > 0 && <span className="text-gray-400 mx-1">→</span>}
           <DownloadDropdown solver={s} />
         </div>

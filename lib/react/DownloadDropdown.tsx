@@ -49,7 +49,7 @@ export const DownloadDropdown = ({
     try {
       if (typeof solver.getConstructorParams !== "function") {
         alert(
-          `getConstructorParams() is not implemented for ${solver.constructor.name}`,
+          `getConstructorParams() is not implemented for ${solver.getSolverName()}`,
         )
         return
       }
@@ -63,12 +63,12 @@ export const DownloadDropdown = ({
       const url = URL.createObjectURL(blob)
       const a = document.createElement("a")
       a.href = url
-      a.download = `${solver.constructor.name}_params.json`
+      a.download = `${solver.getSolverName()}_params.json`
       a.click()
       URL.revokeObjectURL(url)
     } catch (error) {
       alert(
-        `Error downloading params for ${solver.constructor.name}: ${error instanceof Error ? error.message : String(error)}`,
+        `Error downloading params for ${solver.getSolverName()}: ${error instanceof Error ? error.message : String(error)}`,
       )
     }
     setIsOpen(false)
@@ -79,7 +79,7 @@ export const DownloadDropdown = ({
       const params = deepRemoveUnderscoreProperties(
         solver.getConstructorParams(),
       )
-      const solverName = solver.constructor.name
+      const solverName = solver.getSolverName()
       const isSchematicTracePipelineSolver =
         solverName === "SchematicTracePipelineSolver"
 
@@ -118,7 +118,7 @@ export default () => {
       URL.revokeObjectURL(url)
     } catch (error) {
       alert(
-        `Error generating page.tsx for ${solver.constructor.name}: ${error instanceof Error ? error.message : String(error)}`,
+        `Error generating page.tsx for ${solver.getSolverName()}: ${error instanceof Error ? error.message : String(error)}`,
       )
     }
     setIsOpen(false)
@@ -129,7 +129,7 @@ export default () => {
       const params = deepRemoveUnderscoreProperties(
         solver.getConstructorParams(),
       )
-      const solverName = solver.constructor.name
+      const solverName = solver.getSolverName()
 
       const content = `import { ${solverName} } from "lib/solvers/${solverName}/${solverName}"
 import { test, expect } from "bun:test"
@@ -156,7 +156,7 @@ test("${solverName} should solve problem correctly", () => {
       URL.revokeObjectURL(url)
     } catch (error) {
       alert(
-        `Error generating test.ts for ${solver.constructor.name}: ${error instanceof Error ? error.message : String(error)}`,
+        `Error generating test.ts for ${solver.getSolverName()}: ${error instanceof Error ? error.message : String(error)}`,
       )
     }
     setIsOpen(false)
@@ -167,9 +167,9 @@ test("${solverName} should solve problem correctly", () => {
       <button
         className="px-2 py-1 rounded text-xs cursor-pointer"
         onClick={() => setIsOpen(!isOpen)}
-        title={`Download options for ${solver.constructor.name}`}
+        title={`Download options for ${solver.getSolverName()}`}
       >
-        {solver.constructor.name}
+        {solver.getSolverName()}
       </button>
 
       {isOpen && (
