@@ -11,7 +11,7 @@ import type { GraphicsObject } from "graphics-debug"
  * Solvers should override getConstructorParams() to return the parameters
  * needed to construct the solver.
  */
-export class BaseSolver {
+export class BaseSolver<Output = any> {
   MAX_ITERATIONS = 100e3
   solved = false
   failed = false
@@ -77,7 +77,7 @@ export class BaseSolver {
    * This method should only be called after the solver has completed successfully.
    * Returns null by default - solvers with outputs should override this method.
    */
-  getOutput(): any {
+  getOutput(): Output | null {
     return null
   }
 
