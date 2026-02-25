@@ -38,15 +38,21 @@ export const GenericSolverToolbar = ({
 
   const animationSpeedOptions = useMemo(
     () => [
-      { label: "Slow", value: 250 },
-      { label: "Normal", value: 100 },
-      { label: "Fast", value: 25 },
-      { label: "Very Fast", value: 10 },
+      { label: "Slow", value: 250, description: "250ms" },
+      { label: "Normal", value: 100, description: "100ms" },
+      { label: "Fast", value: 10, description: "10ms" },
+      { label: "Fast (2x)", value: 5, description: "5ms" },
+      { label: "Fast (10x)", value: 1, description: "1ms" },
+      { label: "Fast 20x", value: 0.5, description: "2 steps / 1ms" },
+      { label: "Fast 100x", value: 0.1, description: "10 steps / 1ms" },
     ],
     [],
   )
 
   const startAnimation = () => {
+    const intervalMs = Math.max(1, animationSpeed)
+    const stepsPerTick = animationSpeed < 1 ? Math.round(1 / animationSpeed) : 1
+
     animationRef.current = setInterval(() => {
       if (solver.solved || solver.failed) {
         if (animationRef.current) {
@@ -60,9 +66,14 @@ export const GenericSolverToolbar = ({
         }
         return
       }
-      solver.step()
+
+      for (let i = 0; i < stepsPerTick; i++) {
+        if (solver.solved || solver.failed) break
+        solver.step()
+      }
+
       triggerRender()
-    }, animationSpeed)
+    }, intervalMs)
   }
 
   const stopAnimation = () => {
@@ -275,7 +286,7 @@ export const GenericSolverToolbar = ({
                     >
                       {option.label}
                       <span className="ml-auto text-xs text-slate-500">
-                        {option.value}ms
+                        {option.description}
                       </span>
                       {animationSpeed === option.value && (
                         <span className="ml-2 text-xs text-slate-500">✓</span>
