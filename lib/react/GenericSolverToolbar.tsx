@@ -1,5 +1,6 @@
-import React, { useReducer, useRef, useEffect, useMemo, useState } from "react"
+import React, { useEffect, useMemo, useReducer, useRef, useState } from "react"
 import type { BaseSolver } from "../BaseSolver"
+import { GenericSolverStatsSummary } from "./GenericSolverStatsSummary"
 import { SolverBreadcrumbInputDownloader } from "./SolverBreadcrumbInputDownloader"
 
 type RendererOption = "vector" | "canvas"
@@ -197,8 +198,8 @@ export const GenericSolverToolbar = ({
   }, [])
 
   return (
-    <div className="space-y-2 p-2 border-b">
-      <div className="flex items-center">
+    <div className="space-y-2 border-b p-2">
+      <div className="flex items-center gap-3">
         <div className="flex items-center gap-2" ref={menuContainerRef}>
           <div className="flex h-9 items-center space-x-1 rounded-md border border-slate-200 bg-white p-1 shadow-sm">
             <div className="relative">
@@ -299,12 +300,19 @@ export const GenericSolverToolbar = ({
           </div>
           <SolverBreadcrumbInputDownloader solver={solver} />
         </div>
+
+        {solver.stats && Object.keys(solver.stats).length > 0 && (
+          <GenericSolverStatsSummary
+            solverName={solver.getSolverName()}
+            stats={solver.stats}
+          />
+        )}
       </div>
-      <div className="flex gap-2 items-center flex-wrap">
+      <div className="flex flex-wrap items-center gap-2">
         <button
           onClick={handleStep}
           disabled={solver.solved || solver.failed || isAnimating}
-          className="bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 text-white px-3 py-1 rounded text-sm"
+          className="rounded bg-blue-500 px-3 py-1 text-sm text-white hover:bg-blue-600 disabled:bg-gray-300"
         >
           Step
         </button>
@@ -312,7 +320,7 @@ export const GenericSolverToolbar = ({
         <button
           onClick={handleSolve}
           disabled={solver.solved || solver.failed || isAnimating}
-          className="bg-green-500 hover:bg-green-600 disabled:bg-gray-300 text-white px-3 py-1 rounded text-sm"
+          className="rounded bg-green-500 px-3 py-1 text-sm text-white hover:bg-green-600 disabled:bg-gray-300"
         >
           Solve
         </button>
@@ -320,7 +328,7 @@ export const GenericSolverToolbar = ({
         <button
           onClick={handleAnimate}
           disabled={solver.solved || solver.failed}
-          className={`px-3 py-1 rounded text-white text-sm ${
+          className={`rounded px-3 py-1 text-sm text-white ${
             isAnimating
               ? "bg-red-500 hover:bg-red-600"
               : "bg-yellow-500 hover:bg-yellow-600"
@@ -332,7 +340,7 @@ export const GenericSolverToolbar = ({
         <button
           onClick={handleStepUntilIteration}
           disabled={solver.solved || solver.failed || isAnimating}
-          className="bg-orange-500 hover:bg-orange-600 disabled:bg-gray-300 text-white px-3 py-1 rounded text-sm"
+          className="rounded bg-orange-500 px-3 py-1 text-sm text-white hover:bg-orange-600 disabled:bg-gray-300"
         >
           Step Until Iteration
         </button>
@@ -348,20 +356,20 @@ export const GenericSolverToolbar = ({
         )}
 
         {solver.solved && (
-          <div className="px-2 py-1 bg-green-100 text-green-800 rounded text-sm">
+          <div className="rounded bg-green-100 px-2 py-1 text-sm text-green-800">
             Solved
           </div>
         )}
 
         {solver.failed && (
-          <div className="px-2 py-1 bg-red-100 text-red-800 rounded text-sm">
+          <div className="rounded bg-red-100 px-2 py-1 text-sm text-red-800">
             Failed
           </div>
         )}
       </div>
 
       {solver.error && (
-        <div className="text-red-600 text-sm">Error: {solver.error}</div>
+        <div className="text-sm text-red-600">Error: {solver.error}</div>
       )}
     </div>
   )
