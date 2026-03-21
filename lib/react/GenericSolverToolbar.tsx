@@ -1,55 +1,9 @@
-import React, { useReducer, useRef, useEffect, useMemo, useState } from "react"
+import React, { useEffect, useMemo, useReducer, useRef, useState } from "react"
 import type { BaseSolver } from "../BaseSolver"
+import { GenericSolverStatsSummary } from "./GenericSolverStatsSummary"
 import { SolverBreadcrumbInputDownloader } from "./SolverBreadcrumbInputDownloader"
 
 type RendererOption = "vector" | "canvas"
-
-const stringifyStatValue = (value: unknown): string => {
-  if (typeof value === "number") {
-    if (!Number.isFinite(value)) {
-      return String(value)
-    }
-
-    if (Number.isInteger(value)) {
-      return String(value)
-    }
-
-    if (Math.abs(value) >= 1000 || Math.abs(value) < 0.01) {
-      return value.toExponential(1)
-    }
-
-    return value
-      .toFixed(2)
-      .replace(/\.0+$/, "")
-      .replace(/(\.\d*[1-9])0+$/, "$1")
-  }
-
-  if (typeof value === "string") {
-    return value
-  }
-
-  if (typeof value === "boolean") {
-    return value ? "true" : "false"
-  }
-
-  if (value === null || value === undefined) {
-    return String(value)
-  }
-
-  try {
-    return JSON.stringify(value)
-  } catch {
-    return String(value)
-  }
-}
-
-const getStatsSummarySegments = (stats: Record<string, unknown>) => {
-  return Object.entries(stats).map(([key, value]) => ({
-    key,
-    text: `${key}: ${stringifyStatValue(value)}`,
-    widthCh: Math.max(key.length + 8, 12),
-  }))
-}
 
 export interface GenericSolverToolbarProps {
   solver: BaseSolver
@@ -95,22 +49,6 @@ export const GenericSolverToolbar = ({
     ],
     [],
   )
-
-  const statsSegments = useMemo(() => {
-    if (!solver.stats || Object.keys(solver.stats).length === 0) {
-      return []
-    }
-
-    return getStatsSummarySegments(solver.stats)
-  }, [solver.stats])
-
-  const fullStatsJson = useMemo(() => {
-    if (!solver.stats || Object.keys(solver.stats).length === 0) {
-      return ""
-    }
-
-    return JSON.stringify(solver.stats, null, 2)
-  }, [solver.stats])
 
   const startAnimation = () => {
     const intervalMs = Math.max(1, animationSpeed)
@@ -363,23 +301,11 @@ export const GenericSolverToolbar = ({
           <SolverBreadcrumbInputDownloader solver={solver} />
         </div>
 
-        {statsSegments.length > 0 && (
-          <div className="group relative ml-auto min-w-0 flex-1 overflow-visible">
-            <div className="ml-auto flex max-w-[120ch] justify-end gap-2 overflow-hidden whitespace-nowrap text-xs text-slate-600">
-              {statsSegments.map((segment) => (
-                <span
-                  key={segment.key}
-                  className="inline-block overflow-hidden text-ellipsis rounded border border-slate-200 bg-slate-50 px-2 py-1 font-mono tabular-nums"
-                  style={{ width: `${segment.widthCh}ch` }}
-                >
-                  {segment.text}
-                </span>
-              ))}
-            </div>
-            <pre className="pointer-events-none absolute right-0 top-full z-50 mt-1 hidden max-w-[min(40rem,90vw)] overflow-auto whitespace-pre-wrap rounded-md border border-slate-200 bg-slate-950 px-3 py-2 font-mono text-xs leading-5 text-slate-100 shadow-xl group-hover:block">
-              {fullStatsJson}
-            </pre>
-          </div>
+        {solver.stats && Object.keys(solver.stats).length > 0 && (
+          <GenericSolverStatsSummary
+            solverName={solver.getSolverName()}
+            stats={solver.stats}
+          />
         )}
       </div>
       <div className="flex flex-wrap items-center gap-2">
