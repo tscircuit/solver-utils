@@ -4,6 +4,53 @@ import { SolverBreadcrumbInputDownloader } from "./SolverBreadcrumbInputDownload
 
 type RendererOption = "vector" | "canvas"
 
+const stringifyStatValue = (value: unknown): string => {
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) {
+      return String(value)
+    }
+
+    if (Number.isInteger(value)) {
+      return String(value)
+    }
+
+    if (Math.abs(value) >= 1000 || Math.abs(value) < 0.01) {
+      return value.toExponential(1)
+    }
+
+    return value
+      .toFixed(2)
+      .replace(/\.0+$/, "")
+      .replace(/(\.\d*[1-9])0+$/, "$1")
+  }
+
+  if (typeof value === "string") {
+    return value
+  }
+
+  if (typeof value === "boolean") {
+    return value ? "true" : "false"
+  }
+
+  if (value === null || value === undefined) {
+    return String(value)
+  }
+
+  try {
+    return JSON.stringify(value)
+  } catch {
+    return String(value)
+  }
+}
+
+const getStatsSummarySegments = (stats: Record<string, unknown>) => {
+  return Object.entries(stats).map(([key, value]) => ({
+    key,
+    text: `${key}: ${stringifyStatValue(value)}`,
+    widthCh: Math.max(key.length + 8, 12),
+  }))
+}
+
 export interface GenericSolverToolbarProps {
   solver: BaseSolver
   triggerRender: () => void
@@ -48,6 +95,22 @@ export const GenericSolverToolbar = ({
     ],
     [],
   )
+
+  const statsSegments = useMemo(() => {
+    if (!solver.stats || Object.keys(solver.stats).length === 0) {
+      return []
+    }
+
+    return getStatsSummarySegments(solver.stats)
+  }, [solver.stats])
+
+  const fullStatsJson = useMemo(() => {
+    if (!solver.stats || Object.keys(solver.stats).length === 0) {
+      return ""
+    }
+
+    return JSON.stringify(solver.stats, null, 2)
+  }, [solver.stats])
 
   const startAnimation = () => {
     const intervalMs = Math.max(1, animationSpeed)
@@ -197,8 +260,8 @@ export const GenericSolverToolbar = ({
   }, [])
 
   return (
-    <div className="space-y-2 p-2 border-b">
-      <div className="flex items-center">
+    <div className="space-y-2 border-b p-2">
+      <div className="flex items-center gap-3">
         <div className="flex items-center gap-2" ref={menuContainerRef}>
           <div className="flex h-9 items-center space-x-1 rounded-md border border-slate-200 bg-white p-1 shadow-sm">
             <div className="relative">
@@ -299,12 +362,31 @@ export const GenericSolverToolbar = ({
           </div>
           <SolverBreadcrumbInputDownloader solver={solver} />
         </div>
+
+        {statsSegments.length > 0 && (
+          <div className="group relative ml-auto min-w-0 flex-1 overflow-visible">
+            <div className="ml-auto flex max-w-[120ch] justify-end gap-2 overflow-hidden whitespace-nowrap text-xs text-slate-600">
+              {statsSegments.map((segment) => (
+                <span
+                  key={segment.key}
+                  className="inline-block overflow-hidden text-ellipsis rounded border border-slate-200 bg-slate-50 px-2 py-1 font-mono tabular-nums"
+                  style={{ width: `${segment.widthCh}ch` }}
+                >
+                  {segment.text}
+                </span>
+              ))}
+            </div>
+            <pre className="pointer-events-none absolute right-0 top-full z-50 mt-1 hidden max-w-[min(40rem,90vw)] overflow-auto whitespace-pre-wrap rounded-md border border-slate-200 bg-slate-950 px-3 py-2 font-mono text-xs leading-5 text-slate-100 shadow-xl group-hover:block">
+              {fullStatsJson}
+            </pre>
+          </div>
+        )}
       </div>
-      <div className="flex gap-2 items-center flex-wrap">
+      <div className="flex flex-wrap items-center gap-2">
         <button
           onClick={handleStep}
           disabled={solver.solved || solver.failed || isAnimating}
-          className="bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 text-white px-3 py-1 rounded text-sm"
+          className="rounded bg-blue-500 px-3 py-1 text-sm text-white hover:bg-blue-600 disabled:bg-gray-300"
         >
           Step
         </button>
@@ -312,7 +394,7 @@ export const GenericSolverToolbar = ({
         <button
           onClick={handleSolve}
           disabled={solver.solved || solver.failed || isAnimating}
-          className="bg-green-500 hover:bg-green-600 disabled:bg-gray-300 text-white px-3 py-1 rounded text-sm"
+          className="rounded bg-green-500 px-3 py-1 text-sm text-white hover:bg-green-600 disabled:bg-gray-300"
         >
           Solve
         </button>
@@ -320,7 +402,7 @@ export const GenericSolverToolbar = ({
         <button
           onClick={handleAnimate}
           disabled={solver.solved || solver.failed}
-          className={`px-3 py-1 rounded text-white text-sm ${
+          className={`rounded px-3 py-1 text-sm text-white ${
             isAnimating
               ? "bg-red-500 hover:bg-red-600"
               : "bg-yellow-500 hover:bg-yellow-600"
@@ -332,7 +414,7 @@ export const GenericSolverToolbar = ({
         <button
           onClick={handleStepUntilIteration}
           disabled={solver.solved || solver.failed || isAnimating}
-          className="bg-orange-500 hover:bg-orange-600 disabled:bg-gray-300 text-white px-3 py-1 rounded text-sm"
+          className="rounded bg-orange-500 px-3 py-1 text-sm text-white hover:bg-orange-600 disabled:bg-gray-300"
         >
           Step Until Iteration
         </button>
@@ -348,20 +430,20 @@ export const GenericSolverToolbar = ({
         )}
 
         {solver.solved && (
-          <div className="px-2 py-1 bg-green-100 text-green-800 rounded text-sm">
+          <div className="rounded bg-green-100 px-2 py-1 text-sm text-green-800">
             Solved
           </div>
         )}
 
         {solver.failed && (
-          <div className="px-2 py-1 bg-red-100 text-red-800 rounded text-sm">
+          <div className="rounded bg-red-100 px-2 py-1 text-sm text-red-800">
             Failed
           </div>
         )}
       </div>
 
       {solver.error && (
-        <div className="text-red-600 text-sm">Error: {solver.error}</div>
+        <div className="text-sm text-red-600">Error: {solver.error}</div>
       )}
     </div>
   )

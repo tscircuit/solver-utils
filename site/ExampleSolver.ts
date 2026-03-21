@@ -11,6 +11,8 @@ export class ExampleSolver extends BaseSolver {
   private bestPosition: { x: number; y: number }
   private bestDistance: number
   private step_size: number
+  private acceptedMoves: number
+  private uphillMoves: number
 
   constructor() {
     super()
@@ -29,6 +31,8 @@ export class ExampleSolver extends BaseSolver {
     this.bestPosition = { x: 0, y: 0 }
     this.bestDistance = this.calculateTotalDistance(this.currentPosition)
     this.step_size = 2.0
+    this.acceptedMoves = 0
+    this.uphillMoves = 0
   }
 
   override _step() {
@@ -46,6 +50,7 @@ export class ExampleSolver extends BaseSolver {
       this.currentPosition = testPosition
       this.bestPosition = { ...testPosition }
       this.bestDistance = testDistance
+      this.acceptedMoves += 1
     } else {
       // Random walk with probability based on temperature
       const temperature = Math.max(
@@ -54,11 +59,16 @@ export class ExampleSolver extends BaseSolver {
       )
       if (Math.random() < temperature * 0.1) {
         this.currentPosition = testPosition
+        this.acceptedMoves += 1
+        this.uphillMoves += 1
       }
     }
 
     // Update stats
     this.stats = {
+      samples: this.iterations,
+      accepted: this.acceptedMoves,
+      uphill: this.uphillMoves,
       currentDistance: this.calculateTotalDistance(this.currentPosition),
       bestDistance: this.bestDistance,
       temperature: Math.max(0.1, 1.0 - this.iterations / this.MAX_ITERATIONS),
@@ -152,6 +162,14 @@ export class ExampleSolver extends BaseSolver {
     graphics.texts!.push({
       x: -15,
       y: 12,
+      text: `Accepted: ${this.stats.accepted || 0}`,
+      fontSize: 12,
+      color: "black",
+    })
+
+    graphics.texts!.push({
+      x: -15,
+      y: 9,
       text: `Distance: ${this.stats.currentDistance?.toFixed(2) || "N/A"}`,
       fontSize: 12,
       color: "black",
@@ -160,7 +178,7 @@ export class ExampleSolver extends BaseSolver {
     if (this.solved) {
       graphics.texts!.push({
         x: -15,
-        y: 9,
+        y: 6,
         text: "🎉 SOLVED!",
         fontSize: 14,
         color: "green",
