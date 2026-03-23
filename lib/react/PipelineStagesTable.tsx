@@ -39,6 +39,41 @@ interface StageInfo {
   solverInstance: BaseSolver | null
 }
 
+interface SolverTreeNode {
+  id: string
+  name: string
+  status: StageStatus
+  children: SolverTreeNode[]
+}
+
+const getSolverTreeStatus = (solver: BaseSolver): StageStatus => {
+  if (solver.failed) return "Failed"
+  if (solver.solved) return "Completed"
+  if (solver.iterations > 0 || solver.activeSubSolver) return "In Progress"
+  return "Not Started"
+}
+
+export const getActiveSubSolverTree = (
+  solver: BaseSolver,
+  path = solver.getSolverName(),
+): SolverTreeNode[] => {
+  if (!solver.activeSubSolver) {
+    return []
+  }
+
+  const childSolver = solver.activeSubSolver
+  const childPath = `${path}.${childSolver.getSolverName()}`
+
+  return [
+    {
+      id: childPath,
+      name: childSolver.getSolverName(),
+      status: getSolverTreeStatus(childSolver),
+      children: getActiveSubSolverTree(childSolver, childPath),
+    },
+  ]
+}
+
 const getStageStatus = (
   solver: BasePipelineSolver<any>,
   stepIndex: number,
@@ -253,11 +288,53 @@ const ChevronIcon = ({ expanded }: { expanded: boolean }) => (
   >
     <path
       fillRule="evenodd"
-      d="M4.5 5.653c0-1.426 1.529-2.33 2.779-1.643l11.54 6.348c1.295.712 1.295 2.573 0 3.285L7.28 19.991c-1.25.687-2.779-.217-2.779-1.643V5.653z"
+      d="M8.47 4.97a.75.75 0 011.06 0l6.5 6.5a.75.75 0 010 1.06l-6.5 6.5a.75.75 0 11-1.06-1.06L14.44 12 8.47 6.03a.75.75 0 010-1.06z"
       clipRule="evenodd"
     />
   </svg>
 )
+
+const SkipIcon = () => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 24 24"
+    fill="currentColor"
+    className="w-4 h-4"
+  >
+    <path d="M5.25 5.25a.75.75 0 011.17-.62l8.5 6a.75.75 0 010 1.22l-8.5 6a.75.75 0 01-1.17-.62v-12z" />
+    <path d="M17.25 5.25a.75.75 0 011.5 0v13.5a.75.75 0 01-1.5 0V5.25z" />
+  </svg>
+)
+
+const SolverTree = ({
+  nodes,
+  depth = 0,
+}: {
+  nodes: SolverTreeNode[]
+  depth?: number
+}) => {
+  if (nodes.length === 0) {
+    return null
+  }
+
+  return (
+    <div className="mt-1 space-y-1">
+      {nodes.map((node) => (
+        <div key={node.id}>
+          <div
+            className="flex items-center gap-2 text-xs text-gray-500"
+            style={{ paddingLeft: depth * 16 }}
+          >
+            <span className="text-gray-300">↳</span>
+            <span>{node.name}</span>
+            <StatusBadge status={node.status} />
+          </div>
+          <SolverTree nodes={node.children} depth={depth + 1} />
+        </div>
+      ))}
+    </div>
+  )
+}
 
 /** Find the deepest activeSubSolver by traversing the chain */
 const getDeepestActiveSubSolver = (solver: BaseSolver): BaseSolver => {
@@ -409,6 +486,9 @@ export const PipelineStagesTable = ({
             {stages.map((stage) => {
               const isPipeline = isPipelineSolver(stage.solverInstance)
               const isExpanded = expandedStages.has(stage.name)
+              const activeSubSolverTree = stage.solverInstance
+                ? getActiveSubSolverTree(stage.solverInstance, stage.name)
+                : []
 
               return (
                 <React.Fragment key={stage.name}>
@@ -417,23 +497,23 @@ export const PipelineStagesTable = ({
                       stage.status === "In Progress" ? "bg-yellow-50" : ""
                     }`}
                   >
-                    <td className="px-4 py-2">
+                    <td className="px-4 py-2 align-top">
                       <div
-                        className="flex items-center gap-2"
+                        className="flex items-start gap-2"
                         style={{ paddingLeft: indentPadding }}
                       >
                         {isPipeline ? (
                           <button
                             onClick={() => toggleExpanded(stage.name)}
-                            className="text-gray-500 hover:text-gray-700"
+                            className="text-gray-500 hover:text-gray-700 mt-0.5"
                             title={isExpanded ? "Collapse" : "Expand"}
                           >
                             <ChevronIcon expanded={isExpanded} />
                           </button>
                         ) : (
-                          <span className="w-4" />
+                          <span className="w-4 shrink-0" />
                         )}
-                        <span className="text-gray-400 w-6">
+                        <span className="text-gray-400 w-6 shrink-0 mt-0.5">
                           {String(stage.index + 1).padStart(2, "0")}
                         </span>
                         <button
@@ -443,25 +523,17 @@ export const PipelineStagesTable = ({
                             solver.solved ||
                             solver.failed
                           }
-                          className="text-blue-500 hover:text-blue-700 disabled:text-gray-300 disabled:cursor-not-allowed"
+                          className="text-blue-500 hover:text-blue-700 disabled:text-gray-300 disabled:cursor-not-allowed mt-0.5"
                           title={`Step until ${stage.name} completes`}
                         >
-                          <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            viewBox="0 0 24 24"
-                            fill="currentColor"
-                            className="w-4 h-4"
-                          >
-                            <path
-                              fillRule="evenodd"
-                              d="M4.5 5.653c0-1.426 1.529-2.33 2.779-1.643l11.54 6.348c1.295.712 1.295 2.573 0 3.285L7.28 19.991c-1.25.687-2.779-.217-2.779-1.643V5.653z"
-                              clipRule="evenodd"
-                            />
-                          </svg>
+                          <SkipIcon />
                         </button>
-                        <span className="font-medium text-gray-900">
-                          {stage.name}
-                        </span>
+                        <div className="min-w-0">
+                          <span className="font-medium text-gray-900">
+                            {stage.name}
+                          </span>
+                          <SolverTree nodes={activeSubSolverTree} />
+                        </div>
                       </div>
                     </td>
                     <td className="px-4 py-2">
