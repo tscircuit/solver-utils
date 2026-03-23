@@ -3,7 +3,7 @@ import type { BasePipelineSolver } from "../BasePipelineSolver"
 import type { BaseSolver } from "../BaseSolver"
 
 interface PipelineStagesTableProps {
-  solver: BasePipelineSolver<any>
+  solver: BaseSolver
   onStepUntilPhase?: (phaseName: string) => void
   onDownloadInput?: (solver: BaseSolver, stepName: string) => void
   /** Used for nested tables - removes title and adds indentation */
@@ -27,8 +27,8 @@ const isPipelineSolver = (
 
 type StageStatus = "Not Started" | "In Progress" | "Completed" | "Failed"
 
-interface StageInfo {
-  index: number
+export interface StageInfo {
+  index: number | null
   name: string
   status: StageStatus
   firstIteration: number | null
@@ -42,7 +42,6 @@ interface StageInfo {
 const getStageStatus = (
   solver: BasePipelineSolver<any>,
   stepIndex: number,
-  stepName: string,
 ): StageStatus => {
   const currentIndex = solver.currentPipelineStageIndex
 
@@ -63,13 +62,13 @@ const getStageStatus = (
   return "Not Started"
 }
 
-const getStageInfo = (
+const getPipelineStageInfo = (
   solver: BasePipelineSolver<any>,
   stageIndex: number,
 ): StageInfo => {
   const stage = solver.pipelineDef[stageIndex]!
   const stageName = stage.solverName
-  const status = getStageStatus(solver, stageIndex, stageName)
+  const status = getStageStatus(solver, stageIndex)
   const solverInstance = (solver as any)[stageName] as
     | Partial<BaseSolver>
     | undefined
@@ -116,6 +115,51 @@ const getStageInfo = (
     stats: stats && Object.keys(stats).length > 0 ? stats : null,
     solverInstance: (solverInstance as any) ?? null,
   }
+}
+
+const getSubSolverStatus = (solver: BaseSolver): StageStatus => {
+  if (solver.failed) {
+    return "Failed"
+  }
+
+  if (solver.solved) {
+    return "Completed"
+  }
+
+  return "In Progress"
+}
+
+const getActiveSubSolverInfo = (solver: BaseSolver): StageInfo[] => {
+  if (!solver.activeSubSolver) {
+    return []
+  }
+
+  const activeSubSolver = solver.activeSubSolver
+  const stats = activeSubSolver.stats ?? null
+
+  return [
+    {
+      index: null,
+      name: activeSubSolver.getSolverName(),
+      status: getSubSolverStatus(activeSubSolver),
+      firstIteration: null,
+      iterations: activeSubSolver.iterations,
+      progress: activeSubSolver.progress ?? 0,
+      timeSpent: activeSubSolver.timeToSolve ?? 0,
+      stats: stats && Object.keys(stats).length > 0 ? stats : null,
+      solverInstance: activeSubSolver,
+    },
+  ]
+}
+
+export const getDisplayedStages = (solver: BaseSolver): StageInfo[] => {
+  if (isPipelineSolver(solver)) {
+    return solver.pipelineDef.map((_, index) =>
+      getPipelineStageInfo(solver, index),
+    )
+  }
+
+  return getActiveSubSolverInfo(solver)
 }
 
 const StatusBadge = ({ status }: { status: StageStatus }) => {
@@ -259,6 +303,18 @@ const ChevronIcon = ({ expanded }: { expanded: boolean }) => (
   </svg>
 )
 
+const hasNestedSolverContent = (solver: BaseSolver | null): boolean => {
+  if (!solver) {
+    return false
+  }
+
+  if (isPipelineSolver(solver)) {
+    return solver.pipelineDef.length > 0
+  }
+
+  return Boolean(solver.activeSubSolver)
+}
+
 /** Find the deepest activeSubSolver by traversing the chain */
 const getDeepestActiveSubSolver = (solver: BaseSolver): BaseSolver => {
   let current = solver
@@ -278,9 +334,8 @@ export const PipelineStagesTable = ({
 }: PipelineStagesTableProps) => {
   const [expandedStages, setExpandedStages] = useState<Set<string>>(new Set())
 
-  const stages = solver.pipelineDef.map((_, index) =>
-    getStageInfo(solver, index),
-  )
+  const stages = getDisplayedStages(solver)
+  const canControlStages = isPipelineSolver(solver)
 
   const toggleExpanded = (stageName: string) => {
     setExpandedStages((prev) => {
@@ -295,6 +350,10 @@ export const PipelineStagesTable = ({
   }
 
   const handlePlayClick = (stageName: string) => {
+    if (!canControlStages) {
+      return
+    }
+
     onStepUntilPhase?.(stageName)
   }
 
@@ -313,6 +372,10 @@ export const PipelineStagesTable = ({
   }
 
   const handleNextStage = () => {
+    if (!canControlStages) {
+      return
+    }
+
     if (!solver.solved && !solver.failed) {
       const initialActiveSubSolver = solver.activeSubSolver
 
@@ -331,6 +394,10 @@ export const PipelineStagesTable = ({
   }
 
   const handleNextSolver = () => {
+    if (!canControlStages) {
+      return
+    }
+
     if (!solver.solved && !solver.failed) {
       const initialDeepestSolver = getDeepestActiveSubSolver(solver)
 
@@ -358,14 +425,14 @@ export const PipelineStagesTable = ({
           <div className="flex gap-2">
             <button
               onClick={handleNextSolver}
-              disabled={solver.solved || solver.failed}
+              disabled={!canControlStages || solver.solved || solver.failed}
               className="bg-indigo-500 hover:bg-indigo-600 disabled:bg-gray-300 disabled:cursor-not-allowed cursor-pointer text-white px-3 py-1 rounded text-sm"
             >
               Next Solver
             </button>
             <button
               onClick={handleNextStage}
-              disabled={solver.solved || solver.failed}
+              disabled={!canControlStages || solver.solved || solver.failed}
               className="bg-purple-500 hover:bg-purple-600 disabled:bg-gray-300 disabled:cursor-not-allowed cursor-pointer text-white px-3 py-1 rounded text-sm"
             >
               Next Stage
@@ -407,11 +474,15 @@ export const PipelineStagesTable = ({
           )}
           <tbody>
             {stages.map((stage) => {
-              const isPipeline = isPipelineSolver(stage.solverInstance)
+              const hasNestedContent = hasNestedSolverContent(
+                stage.solverInstance,
+              )
               const isExpanded = expandedStages.has(stage.name)
 
               return (
-                <React.Fragment key={stage.name}>
+                <React.Fragment
+                  key={`${stage.name}-${stage.index ?? "subsolver"}`}
+                >
                   <tr
                     className={`border-b border-gray-100 ${
                       stage.status === "In Progress" ? "bg-yellow-50" : ""
@@ -422,7 +493,7 @@ export const PipelineStagesTable = ({
                         className="flex items-center gap-2"
                         style={{ paddingLeft: indentPadding }}
                       >
-                        {isPipeline ? (
+                        {hasNestedContent ? (
                           <button
                             onClick={() => toggleExpanded(stage.name)}
                             className="text-gray-500 hover:text-gray-700"
@@ -434,31 +505,37 @@ export const PipelineStagesTable = ({
                           <span className="w-4" />
                         )}
                         <span className="text-gray-400 w-6">
-                          {String(stage.index + 1).padStart(2, "0")}
+                          {stage.index === null
+                            ? ""
+                            : String(stage.index + 1).padStart(2, "0")}
                         </span>
-                        <button
-                          onClick={() => handlePlayClick(stage.name)}
-                          disabled={
-                            stage.status === "Completed" ||
-                            solver.solved ||
-                            solver.failed
-                          }
-                          className="text-blue-500 hover:text-blue-700 disabled:text-gray-300 disabled:cursor-not-allowed"
-                          title={`Step until ${stage.name} completes`}
-                        >
-                          <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            viewBox="0 0 24 24"
-                            fill="currentColor"
-                            className="w-4 h-4"
+                        {canControlStages ? (
+                          <button
+                            onClick={() => handlePlayClick(stage.name)}
+                            disabled={
+                              stage.status === "Completed" ||
+                              solver.solved ||
+                              solver.failed
+                            }
+                            className="text-blue-500 hover:text-blue-700 disabled:text-gray-300 disabled:cursor-not-allowed"
+                            title={`Step until ${stage.name} completes`}
                           >
-                            <path
-                              fillRule="evenodd"
-                              d="M4.5 5.653c0-1.426 1.529-2.33 2.779-1.643l11.54 6.348c1.295.712 1.295 2.573 0 3.285L7.28 19.991c-1.25.687-2.779-.217-2.779-1.643V5.653z"
-                              clipRule="evenodd"
-                            />
-                          </svg>
-                        </button>
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              viewBox="0 0 24 24"
+                              fill="currentColor"
+                              className="w-4 h-4"
+                            >
+                              <path
+                                fillRule="evenodd"
+                                d="M4.5 5.653c0-1.426 1.529-2.33 2.779-1.643l11.54 6.348c1.295.712 1.295 2.573 0 3.285L7.28 19.991c-1.25.687-2.779-.217-2.779-1.643V5.653z"
+                                clipRule="evenodd"
+                              />
+                            </svg>
+                          </button>
+                        ) : (
+                          <span className="w-4" />
+                        )}
                         <span className="font-medium text-gray-900">
                           {stage.name}
                         </span>
@@ -508,13 +585,11 @@ export const PipelineStagesTable = ({
                       ) : null}
                     </td>
                   </tr>
-                  {isPipeline && isExpanded && (
+                  {hasNestedContent && isExpanded && stage.solverInstance && (
                     <tr>
                       <td colSpan={8} className="p-0">
                         <PipelineStagesTable
-                          solver={
-                            stage.solverInstance as BasePipelineSolver<any>
-                          }
+                          solver={stage.solverInstance}
                           onStepUntilPhase={onStepUntilPhase}
                           onDownloadInput={onDownloadInput}
                           isNested={true}

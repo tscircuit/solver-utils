@@ -102,8 +102,6 @@ export const GenericSolverDebugger = ({
     setCurrentAnimationSpeed(animationSpeed)
   }, [animationSpeed])
 
-  const isPipelineSolver = (solver as any).pipelineDef !== undefined
-
   const handleStepUntilPhase = (phaseName: string) => {
     const pipelineSolver = solver as BasePipelineSolver<any>
     if (!solver.solved && !solver.failed) {
@@ -172,13 +170,11 @@ export const GenericSolverDebugger = ({
           )}
         </ErrorBoundary>
       )}
-      {isPipelineSolver && (
-        <PipelineStagesTable
-          solver={solver as BasePipelineSolver<any>}
-          onStepUntilPhase={handleStepUntilPhase}
-          triggerRender={incRenderCount}
-        />
-      )}
+      <PipelineStagesTable
+        solver={solver}
+        onStepUntilPhase={handleStepUntilPhase}
+        triggerRender={incRenderCount}
+      />
     </div>
   )
 }
