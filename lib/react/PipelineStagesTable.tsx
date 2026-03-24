@@ -14,6 +14,17 @@ interface PipelineStagesTableProps {
   triggerRender?: () => void
 }
 
+const STAGE_TABLE_COLUMN_WIDTHS = [
+  "40%",
+  "11rem",
+  "5rem",
+  "7rem",
+  "12rem",
+  "7rem",
+  "20%",
+  "6rem",
+] as const
+
 /** Check if a solver is a pipeline solver (has pipelineDef) */
 const isPipelineSolver = (
   solver: BaseSolver | null,
@@ -441,7 +452,12 @@ export const PipelineStagesTable = ({
         </div>
       )}
       <div className="overflow-x-auto">
-        <table className="w-full text-sm">
+        <table className="w-full table-fixed text-sm">
+          <colgroup>
+            {STAGE_TABLE_COLUMN_WIDTHS.map((width, index) => (
+              <col key={index} style={{ width }} />
+            ))}
+          </colgroup>
           {!isNested && (
             <thead>
               <tr className="bg-gray-50 border-b border-gray-200">
