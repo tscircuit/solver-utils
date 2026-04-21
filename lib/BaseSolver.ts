@@ -1,4 +1,34 @@
 import type { GraphicsObject } from "graphics-debug"
+import { toStructuredCloneSafe } from "./structured-clone"
+
+export interface BaseSolverSnapshot {
+  solverName: string
+  solved: boolean
+  failed: boolean
+  iterations: number
+  progress: number
+  error: string | null
+  maxIterations: number
+  timeToSolve?: number
+  stats: Record<string, unknown>
+  state: Record<string, unknown>
+  activeSubSolver: BaseSolverSnapshot | null
+  failedSubSolvers: BaseSolverSnapshot[]
+}
+
+const BASE_SOLVER_SNAPSHOT_KEYS = new Set([
+  "MAX_ITERATIONS",
+  "solved",
+  "failed",
+  "iterations",
+  "progress",
+  "error",
+  "activeSubSolver",
+  "failedSubSolvers",
+  "timeToSolve",
+  "stats",
+  "_setupDone",
+])
 
 /**
  * A base class for solvers implementing the standard solve() interface.
@@ -116,6 +146,57 @@ export class BaseSolver {
       points: [],
       rects: [],
       circles: [],
+    }
+  }
+
+  /**
+   * Override this when the default "all enumerable public fields" state
+   * snapshot is too large or includes non-cloneable values.
+   */
+  getSerializableState(): Record<string, unknown> {
+    const state: Record<string, unknown> = {}
+
+    for (const [key, value] of Object.entries(this)) {
+      if (key.startsWith("_") || BASE_SOLVER_SNAPSHOT_KEYS.has(key)) {
+        continue
+      }
+
+      if (value instanceof BaseSolver) {
+        state[key] = value.getSerializableSnapshot()
+        continue
+      }
+
+      if (
+        Array.isArray(value) &&
+        value.every((entry) => entry instanceof BaseSolver)
+      ) {
+        state[key] = value.map((entry) => entry.getSerializableSnapshot())
+        continue
+      }
+
+      state[key] = toStructuredCloneSafe(value)
+    }
+
+    return state
+  }
+
+  getSerializableSnapshot(): BaseSolverSnapshot {
+    return {
+      solverName: this.getSolverName(),
+      solved: this.solved,
+      failed: this.failed,
+      iterations: this.iterations,
+      progress: this.progress,
+      error: this.error,
+      maxIterations: this.MAX_ITERATIONS,
+      timeToSolve: this.timeToSolve,
+      stats: toStructuredCloneSafe(this.stats),
+      state: this.getSerializableState(),
+      activeSubSolver: this.activeSubSolver?.getSerializableSnapshot() ?? null,
+      failedSubSolvers:
+        this.failedSubSolvers?.map((solver) =>
+          solver.getSerializableSnapshot(),
+        ) ?? [],
     }
   }
 }
