@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useReducer, useRef, useState } from "react"
-import { type BaseSolver, getSolverName } from "../BaseSolver"
+import type { BaseSolver } from "../BaseSolver"
 import { GenericSolverStatsSummary } from "./GenericSolverStatsSummary"
 import { SolverBreadcrumbInputDownloader } from "./SolverBreadcrumbInputDownloader"
 
@@ -303,7 +303,7 @@ export const GenericSolverToolbar = ({
 
         {solver.stats && Object.keys(solver.stats).length > 0 && (
           <GenericSolverStatsSummary
-            solverName={getSolverName(solver)}
+            solverName={solver.getSolverName()}
             stats={solver.stats}
           />
         )}
