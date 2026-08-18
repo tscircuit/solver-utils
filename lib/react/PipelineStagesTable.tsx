@@ -1,6 +1,6 @@
 import React, { useState } from "react"
 import type { BasePipelineSolver } from "../BasePipelineSolver"
-import type { BaseSolver } from "../BaseSolver"
+import { type BaseSolver, getSolverName } from "../BaseSolver"
 
 interface PipelineStagesTableProps {
   solver: BaseSolver
@@ -151,7 +151,7 @@ const getActiveSubSolverInfo = (solver: BaseSolver): StageInfo[] => {
   return [
     {
       index: null,
-      name: activeSubSolver.getSolverName(),
+      name: getSolverName(activeSubSolver),
       status: getSubSolverStatus(activeSubSolver),
       firstIteration: null,
       iterations: activeSubSolver.iterations,

@@ -1,5 +1,5 @@
-import { test, expect } from "bun:test"
-import { BaseSolver } from "../lib/BaseSolver"
+import { expect, test } from "bun:test"
+import { BaseSolver, getSolverName } from "../lib/BaseSolver"
 
 class TestSolver extends BaseSolver {
   target = 10
@@ -42,6 +42,34 @@ test("BaseSolver basic functionality", () => {
   expect(solver.failed).toBe(false)
   expect(solver.iterations).toBe(0)
   expect(solver._setupDone).toBe(false)
+})
+
+test("BaseSolver uses an explicit static solver name", () => {
+  class MinifiedSolver extends BaseSolver {
+    static override solverName = "ReadableSolver"
+  }
+
+  expect(new MinifiedSolver().getSolverName()).toBe("ReadableSolver")
+})
+
+test("getSolverName supports solvers with a legacy instance method", () => {
+  class MinifiedLegacySolver extends BaseSolver {
+    static override solverName = "ReadableLegacySolver"
+
+    override getSolverName() {
+      return "aby"
+    }
+  }
+
+  expect(getSolverName(new MinifiedLegacySolver())).toBe("ReadableLegacySolver")
+})
+
+test("getSolverName supports solvers without an instance name method", () => {
+  class StandaloneSolver {
+    static solverName = "ReadableStandaloneSolver"
+  }
+
+  expect(getSolverName(new StandaloneSolver())).toBe("ReadableStandaloneSolver")
 })
 
 test("BaseSolver setup and solving", () => {

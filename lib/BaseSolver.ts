@@ -12,6 +12,8 @@ import type { GraphicsObject } from "graphics-debug"
  * needed to construct the solver.
  */
 export class BaseSolver {
+  static solverName?: string
+
   MAX_ITERATIONS = 100e3
   solved = false
   failed = false
@@ -25,7 +27,10 @@ export class BaseSolver {
   _setupDone = false
 
   getSolverName(): string {
-    return this.constructor.name
+    return (
+      (this.constructor as typeof BaseSolver).solverName ??
+      this.constructor.name
+    )
   }
 
   setup() {
@@ -118,4 +123,22 @@ export class BaseSolver {
       circles: [],
     }
   }
+}
+
+/**
+ * Returns the explicit solver name when one is attached to the constructor.
+ *
+ * Keeping this lookup outside the instance method allows the debugger to show
+ * stable names for solvers that bundle an older or package-local BaseSolver.
+ */
+export const getSolverName = (solver: object): string => {
+  const solverWithLegacyName = solver as {
+    getSolverName?: () => string
+  }
+
+  return (
+    (solver.constructor as typeof BaseSolver).solverName ??
+    solverWithLegacyName.getSolverName?.() ??
+    solver.constructor.name
+  )
 }

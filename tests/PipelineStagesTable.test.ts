@@ -26,6 +26,14 @@ class NestedSolver extends BaseSolver {
   }
 }
 
+class StaticallyNamedLegacySolver extends BaseSolver {
+  static override solverName = "ReadableNestedSolver"
+
+  override getSolverName() {
+    return "aby"
+  }
+}
+
 class FirstStageSolver extends BaseSolver {}
 class SecondStageSolver extends BaseSolver {}
 
@@ -113,6 +121,14 @@ describe("getDisplayedStages", () => {
         solverInstance: child,
       },
     ])
+  })
+
+  test("prefers an active subsolver's static name", () => {
+    const activeSubSolver = new StaticallyNamedLegacySolver()
+
+    expect(getDisplayedStages(new NestedSolver(activeSubSolver))[0]?.name).toBe(
+      "ReadableNestedSolver",
+    )
   })
 
   test("marks solved and failed subsolvers with the matching display status", () => {

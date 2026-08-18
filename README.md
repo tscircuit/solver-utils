@@ -49,6 +49,8 @@ import { BaseSolver } from "@tscircuit/solver-utils"
 import type { GraphicsObject } from "graphics-debug"
 
 class CountToTenSolver extends BaseSolver {
+  static override solverName = "CountToTenSolver"
+
   target = 10
   value = 0
 
@@ -204,6 +206,10 @@ export default function SolverPage() {
 - `visualize()`: return a `GraphicsObject` for rendering.
 - `getConstructorParams()`: return reproducible constructor input (used by download helpers).
 - `getOutput()`: standardized solved result (especially useful in pipelines).
+
+Set `static solverName` on solver classes that may pass through a minifying
+bundler. `getSolverName()` and the React debugger prefer this explicit name and
+fall back to the JavaScript constructor name when it is absent.
 
 ## BaseSolver Guide
 
@@ -380,6 +386,7 @@ bun test
   - `BaseSolver`
   - `BasePipelineSolver`
   - `definePipelineStep`
+  - `getSolverName`
 - React: `@tscircuit/solver-utils/react`
   - `GenericSolverDebugger`
   - `GenericSolverToolbar`
@@ -396,6 +403,7 @@ bun test
 - `error = null`
 - `stats = {}`
 - `MAX_ITERATIONS = 100_000`
+- `static solverName` (optional stable display name)
 
 ### `BasePipelineSolver` notable state
 
