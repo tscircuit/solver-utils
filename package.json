@@ -1,5 +1,9 @@
 {
   "name": "@tscircuit/solver-utils",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tscircuit/solver-utils.git"
+  },
   "main": "dist/index.js",
   "version": "0.0.19",
   "files": [
