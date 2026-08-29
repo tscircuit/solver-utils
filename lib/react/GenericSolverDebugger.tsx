@@ -48,7 +48,7 @@ export const GenericSolverDebugger = ({
   onSolverCompleted,
 }: GenericSolverDebuggerProps) => {
   const [renderCount, incRenderCount] = useReducer((x) => x + 1, 0)
-  const [solver] = useState<BaseSolver>(() => {
+  const [solver, setSolver] = useState<BaseSolver>(() => {
     if (createSolver) {
       return createSolver()
     }
@@ -142,6 +142,30 @@ export const GenericSolverDebugger = ({
     }
   }
 
+  const handleSolverReset = () => {
+    if (createSolver) {
+      setSolver(createSolver())
+      incRenderCount()
+      return
+    }
+
+    try {
+      const constructorParams = solver.getConstructorParams()
+      const constructorArgs = Array.isArray(constructorParams)
+        ? constructorParams
+        : []
+      const nextSolver = new (
+        solver.constructor as new (
+          ...args: any[]
+        ) => BaseSolver
+      )(...constructorArgs)
+      setSolver(nextSolver)
+      incRenderCount()
+    } catch (error) {
+      console.warn(`Could not reset solver ${solver.getSolverName()}:`, error)
+    }
+  }
+
   return (
     <div>
       <GenericSolverToolbar
@@ -154,6 +178,7 @@ export const GenericSolverDebugger = ({
         onDownloadVisualization={handleDownloadVisualization}
         onSolverStarted={onSolverStarted}
         onSolverCompleted={onSolverCompleted}
+        onSolverReset={handleSolverReset}
       />
       {graphicsAreEmpty ? (
         <div className="p-4 text-gray-500">No Graphics Yet</div>

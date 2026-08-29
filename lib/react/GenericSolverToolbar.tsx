@@ -15,6 +15,7 @@ export interface GenericSolverToolbarProps {
   onDownloadVisualization: () => void
   onSolverStarted?: (solver: BaseSolver) => void
   onSolverCompleted?: (solver: BaseSolver) => void
+  onSolverReset?: () => void
 }
 
 export const GenericSolverToolbar = ({
@@ -27,6 +28,7 @@ export const GenericSolverToolbar = ({
   onDownloadVisualization,
   onSolverStarted,
   onSolverCompleted,
+  onSolverReset,
 }: GenericSolverToolbarProps) => {
   const [isAnimating, setIsAnimating] = useReducer((x) => !x, false)
   const animationRef = useRef<NodeJS.Timeout | undefined>(undefined)
@@ -317,13 +319,23 @@ export const GenericSolverToolbar = ({
           Step
         </button>
 
-        <button
-          onClick={handleSolve}
-          disabled={solver.solved || solver.failed || isAnimating}
-          className="rounded bg-green-500 px-3 py-1 text-sm text-white hover:bg-green-600 disabled:bg-gray-300"
-        >
-          Solve
-        </button>
+        {solver.solved || solver.failed ? (
+          <button
+            onClick={onSolverReset}
+            disabled={!onSolverReset || isAnimating}
+            className="rounded bg-purple-500 px-3 py-1 text-sm text-white hover:bg-purple-600 disabled:bg-gray-300"
+          >
+            Reset
+          </button>
+        ) : (
+          <button
+            onClick={handleSolve}
+            disabled={isAnimating}
+            className="rounded bg-green-500 px-3 py-1 text-sm text-white hover:bg-green-600 disabled:bg-gray-300"
+          >
+            Solve
+          </button>
+        )}
 
         <button
           onClick={handleAnimate}
