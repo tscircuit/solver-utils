@@ -89,6 +89,7 @@ export function SimpleGraphicsSVG({ graphics }: { graphics: GraphicsObject }) {
           fill="none"
           stroke={l.strokeColor ?? "black"}
           strokeWidth={l.strokeWidth ?? 1}
+          strokeLinejoin="round"
           points={(l.points ?? [])
             .map((p: any) => `${p.x ?? 0},${p.y ?? 0}`)
             .join(" ")}
