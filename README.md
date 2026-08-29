@@ -6,6 +6,7 @@ Reusable building blocks for iterative solvers, multi-stage solver pipelines, an
 
 - `BaseSolver`: a safe base class for step-based solvers.
 - `BasePipelineSolver`: orchestration for sequential solver stages.
+- `SolverWorkerClient` + `exposeSolverWorker`: a standard way to run a solver inside a Web Worker.
 - React debugger components for stepping, animating, and inspecting solver state.
 
 ## Table of Contents
@@ -15,6 +16,7 @@ Reusable building blocks for iterative solvers, multi-stage solver pipelines, an
 - [Core Concepts](#core-concepts)
 - [BaseSolver Guide](#basesolver-guide)
 - [BasePipelineSolver Guide](#basepipelinesolver-guide)
+- [Solver Worker Guide](#solver-worker-guide)
 - [React Debugger Guide](#react-debugger-guide)
 - [Testing Solvers](#testing-solvers)
 - [API Reference](#api-reference)
@@ -176,7 +178,37 @@ console.log(pipeline.getAllOutputs())
 console.log(pipeline.getStageStats())
 ```
 
-### 3) Debug in React
+### 3) Run a solver in a Web Worker
+
+`SolverWorkerClient` is the async mirror of `BaseSolver` for worker-backed solvers.
+
+```ts
+// CountToTenSolver.worker.ts
+import { exposeSolverWorker } from "@tscircuit/solver-utils"
+import { CountToTenSolver } from "./CountToTenSolver"
+
+exposeSolverWorker(CountToTenSolver)
+```
+
+```ts
+// main-thread.ts
+import { SolverWorkerClient } from "@tscircuit/solver-utils"
+
+const worker = new Worker(
+  new URL("./CountToTenSolver.worker.ts", import.meta.url),
+  { type: "module" },
+)
+
+const solver = await SolverWorkerClient.create(worker)
+await solver.solve()
+
+console.log({
+  solved: solver.solved,
+  snapshot: solver.snapshot,
+})
+```
+
+### 4) Debug in React
 
 ```tsx
 import { useMemo } from "react"
@@ -204,6 +236,7 @@ export default function SolverPage() {
 - `visualize()`: return a `GraphicsObject` for rendering.
 - `getConstructorParams()`: return reproducible constructor input (used by download helpers).
 - `getOutput()`: standardized solved result (especially useful in pipelines).
+- `getSerializableSnapshot()`: standardized structured-clone-safe state for worker transport.
 
 ## BaseSolver Guide
 
@@ -267,6 +300,7 @@ class MySolver extends BaseSolver {
 - Exceptions thrown in `_step()` are captured, `failed` is set, and the error is re-thrown.
 - On max-iteration exhaustion, `tryFinalAcceptance()` is called before failing.
 - You can override `tryFinalAcceptance()` for “best effort” acceptance logic.
+- Override `getSerializableState()` if the default public-field snapshot is too large or contains values that should not cross a worker boundary.
 
 ## BasePipelineSolver Guide
 
@@ -314,6 +348,103 @@ You can override:
 - `finalVisualize()` for final summary output.
 
 These are inserted as extra visualization steps around stage visuals.
+
+## Solver Worker Guide
+
+The worker convention is:
+
+1. A dedicated worker owns exactly one solver instance.
+2. The worker entry calls `exposeSolverWorker(...)`.
+3. The main thread talks to that worker through `SolverWorkerClient`.
+4. State crosses the worker boundary as a `getSerializableSnapshot()` payload, not as a live class instance.
+
+`SolverWorkerClient` intentionally does **not** extend `BaseSolver`. The local object is a proxy over message passing, so the common lifecycle methods become async:
+
+- `init(...args)`
+- `step()`
+- `solve({ snapshotEvery? })`
+- `syncSnapshot()`
+- `getOutput()`
+- `getConstructorParams()`
+- `visualize()`
+- `preview()`
+- `call(methodName, ...args)`
+- `dispose()`
+
+### Canonical worker packaging
+
+Put a dedicated entrypoint next to the solver and keep it very small:
+
+```ts
+// MySolver.worker.ts
+import { exposeSolverWorker } from "@tscircuit/solver-utils"
+import { MySolver } from "./MySolver"
+
+exposeSolverWorker(MySolver)
+```
+
+On the main thread:
+
+```ts
+import { SolverWorkerClient } from "@tscircuit/solver-utils"
+
+const worker = new Worker(new URL("./MySolver.worker.ts", import.meta.url), {
+  type: "module",
+})
+
+const solver = await SolverWorkerClient.create(worker, {
+  input: "whatever your solver constructor expects",
+})
+
+await solver.solve()
+const output = await solver.getOutput()
+```
+
+If the worker needs custom construction logic, use the object form:
+
+```ts
+import { exposeSolverWorker } from "@tscircuit/solver-utils"
+import { MySolver } from "./MySolver"
+
+exposeSolverWorker({
+  createSolver: (input, options) => new MySolver({ input, seed: options.seed }),
+})
+```
+
+### Snapshot contract
+
+`BaseSolver#getSerializableSnapshot()` is the common wire format used by the worker helpers. It includes:
+
+- base solver metadata (`solved`, `failed`, `iterations`, `progress`, `error`, `timeToSolve`)
+- `stats`
+- `activeSubSolver`
+- `failedSubSolvers`
+- `state`, which defaults to all enumerable public fields except the base runtime fields
+
+This means most existing solvers can cross the worker boundary without any extra work. If a solver has very large state, circular references you want to trim, or non-cloneable values, override `getSerializableState()`.
+
+### Progress streaming
+
+`await solver.solve({ snapshotEvery: 100 })` makes the worker emit snapshots every 100 iterations. Subscribe on the client when you want coarse-grained live updates without stepping manually:
+
+```ts
+const unsubscribe = solver.subscribe((snapshot) => {
+  console.log(snapshot.iterations, snapshot.progress)
+})
+
+await solver.solve({ snapshotEvery: 100 })
+unsubscribe()
+```
+
+### Custom solver methods
+
+The worker convention standardizes the common `BaseSolver` surface, but solvers often have domain-specific helpers like `getFinalPosition()`. Use `call(...)` for that:
+
+```ts
+const finalPosition = await solver.call("getFinalPosition")
+```
+
+Prefer `getOutput()` for stable result contracts, and keep `call(...)` for explicit solver-specific escape hatches.
 
 ## React Debugger Guide
 
@@ -380,6 +511,8 @@ bun test
   - `BaseSolver`
   - `BasePipelineSolver`
   - `definePipelineStep`
+  - `SolverWorkerClient`
+  - `exposeSolverWorker`
 - React: `@tscircuit/solver-utils/react`
   - `GenericSolverDebugger`
   - `GenericSolverToolbar`
@@ -396,6 +529,11 @@ bun test
 - `error = null`
 - `stats = {}`
 - `MAX_ITERATIONS = 100_000`
+
+### `BaseSolver` worker snapshot helpers
+
+- `getSerializableState()`
+- `getSerializableSnapshot()`
 
 ### `BasePipelineSolver` notable state
 
@@ -450,4 +588,5 @@ bun run format
 - If input download fails, ensure `getConstructorParams()` is implemented.
 - If solver never terminates, confirm `_step()` eventually sets `solved` or `failed`.
 - If pipeline stage lookup fails, confirm `solverName` matches property access in `getSolver("name")`.
+- If worker snapshots fail to cross the thread boundary, override `getSerializableState()` to remove non-cloneable values.
 - If React debugger renders nothing, make sure `visualize()` returns at least one non-empty primitive array.
