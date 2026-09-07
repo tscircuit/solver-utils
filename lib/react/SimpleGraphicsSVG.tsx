@@ -30,16 +30,16 @@ export function SimpleGraphicsSVG({ graphics }: { graphics: GraphicsObject }) {
     for (const p of pts) consider(p.x, p.y)
   }
   for (const r of rects) {
-    const x = (r as any).x ?? 0
-    const y = (r as any).y ?? 0
+    const x = r.center.x - r.width / 2
+    const y = r.center.y - r.height / 2
     const w = (r as any).width ?? 0
     const h = (r as any).height ?? 0
     consider(x, y)
     consider(x + w, y + h)
   }
   for (const c of circles) {
-    const x = (c as any).x ?? 0
-    const y = (c as any).y ?? 0
+    const x = c.center.x
+    const y = c.center.y
     const rad = (c as any).radius ?? 1
     consider(x - rad, y - rad)
     consider(x + rad, y + rad)
@@ -74,12 +74,12 @@ export function SimpleGraphicsSVG({ graphics }: { graphics: GraphicsObject }) {
       {rects.map((r: any, i: number) => (
         <rect
           key={`rect-${i}`}
-          x={r.x ?? 0}
-          y={r.y ?? 0}
+          x={r.center.x - r.width / 2}
+          y={r.center.y - r.height / 2}
           width={r.width ?? 0}
           height={r.height ?? 0}
-          fill="none"
-          stroke={r.strokeColor ?? "black"}
+          fill={r.fill ?? "none"}
+          stroke={r.stroke ?? "black"}
           strokeWidth={r.strokeWidth ?? 1}
         />
       ))}
@@ -97,11 +97,11 @@ export function SimpleGraphicsSVG({ graphics }: { graphics: GraphicsObject }) {
       {circles.map((c: any, i: number) => (
         <circle
           key={`circle-${i}`}
-          cx={c.x ?? 0}
-          cy={c.y ?? 0}
+          cx={c.center.x}
+          cy={c.center.y}
           r={c.radius ?? 1.5}
-          fill={c.fillColor ?? "none"}
-          stroke={c.strokeColor ?? "black"}
+          fill={c.fill ?? "none"}
+          stroke={c.stroke ?? "black"}
           strokeWidth={c.strokeWidth ?? 1}
         />
       ))}
