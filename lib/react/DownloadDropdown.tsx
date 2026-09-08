@@ -102,7 +102,7 @@ export const inputProblem = ${JSON.stringify(params, null, 2)}
 
 export default () => {
   const solver = useMemo(() => {
-    return new ${solverName}(inputProblem as any)
+    return new ${solverName}(...(Array.isArray(inputProblem) ? inputProblem : [inputProblem]) as ConstructorParameters<typeof ${solverName}>)
   }, [])
   return <GenericSolverDebugger solver={solver} />
 }
@@ -137,7 +137,7 @@ import { test, expect } from "bun:test"
 test("${solverName} should solve problem correctly", () => {
   const input = ${JSON.stringify(params, null, 2)}
   
-  const solver = new ${solverName}(input as any)
+  const solver = new ${solverName}(...(Array.isArray(input) ? input : [input]) as ConstructorParameters<typeof ${solverName}>)
   solver.solve()
 
   expect(solver).toMatchSolverSnapshot(import.meta.path)
