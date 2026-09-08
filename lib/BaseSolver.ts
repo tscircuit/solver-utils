@@ -39,13 +39,14 @@ export class BaseSolver {
 
   /** DO NOT OVERRIDE! Override _step() instead */
   step() {
-    if (!this._setupDone) {
-      this.setup()
-    }
     if (this.solved) return
     if (this.failed) return
-    this.iterations++
     try {
+      if (!this._setupDone) {
+        this.setup()
+      }
+      if (this.solved || this.failed) return
+      this.iterations++
       this._step()
     } catch (e) {
       this.error = `${this.getSolverName()} error: ${e}`
