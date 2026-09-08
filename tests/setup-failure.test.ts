@@ -20,10 +20,14 @@ class SetupFailureSolver extends BaseSolver {
 for (const method of ["step", "solve"] as const) {
   test(`${method} records setup failure and rethrows the original error`, () => {
     const solver = new SetupFailureSolver()
-    assert.throws(() => solver[method](), (error) => error === solver.setupError)
+    assert.throws(
+      () => solver[method](),
+      (error) => error === solver.setupError,
+    )
     assert.equal(solver.failed, true)
     assert.equal(solver.solved, false)
     assert.equal(solver.iterations, 0)
+    assert.equal(solver.iterations, solver.stepCalls)
     assert.equal(solver.stepCalls, 0)
     assert.equal(solver._setupDone, false)
     assert.equal(solver.error, `SetupFailureSolver error: ${solver.setupError}`)
@@ -91,7 +95,10 @@ test("step exceptions retain their existing failure behavior", () => {
     }
   }
   const solver = new StepFailureSolver()
-  assert.throws(() => solver.step(), (error) => error === failure)
+  assert.throws(
+    () => solver.step(),
+    (error) => error === failure,
+  )
   assert.equal(solver.failed, true)
   assert.equal(solver.iterations, 1)
   assert.equal(solver.error, `StepFailureSolver error: ${failure}`)
