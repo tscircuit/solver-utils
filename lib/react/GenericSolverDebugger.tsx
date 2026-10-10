@@ -9,6 +9,7 @@ import { GenericSolverToolbar } from "./GenericSolverToolbar"
 import { PipelineStagesTable } from "./PipelineStagesTable"
 import { SimpleGraphicsSVG } from "./SimpleGraphicsSVG"
 import type { GraphicsObject } from "graphics-debug"
+import { useDebuggerStyles } from "./use-debugger-styles"
 
 class ErrorBoundary extends React.Component<
   { fallback: React.ReactNode; children: React.ReactNode },
@@ -47,6 +48,7 @@ export const GenericSolverDebugger = ({
   onSolverStarted,
   onSolverCompleted,
 }: GenericSolverDebuggerProps) => {
+  useDebuggerStyles()
   const [renderCount, incRenderCount] = useReducer((x) => x + 1, 0)
   const [solver] = useState<BaseSolver>(() => {
     if (createSolver) {
@@ -84,19 +86,6 @@ export const GenericSolverDebugger = ({
       (visualization.circles?.length || 0) === 0,
     [visualization],
   )
-
-  useEffect(() => {
-    if (typeof document === "undefined") return
-    if (
-      !document.querySelector(
-        'script[src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"]',
-      )
-    ) {
-      const script = document.createElement("script")
-      script.src = "https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"
-      document.head.appendChild(script)
-    }
-  }, [])
 
   useEffect(() => {
     setCurrentAnimationSpeed(animationSpeed)
@@ -143,7 +132,7 @@ export const GenericSolverDebugger = ({
   }
 
   return (
-    <div>
+    <div className="tscircuit-solver-debugger">
       <GenericSolverToolbar
         solver={solver}
         triggerRender={incRenderCount}
