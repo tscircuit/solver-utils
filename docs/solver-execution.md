@@ -5,9 +5,9 @@ Hypergraph, high-density, repair, and other solvers can depend on
 `@tscircuit/solver-utils` without importing a parent autorouter package.
 
 The host owns execution resources. Solvers own their algorithms and the order
-in which results affect them. The Node adapters execute explicitly registered
-tasks without changing `BaseSolver` / `BasePipelineSolver` or dispatching any
-existing autorouter stages automatically.
+in which results affect them. Executors run explicitly registered tasks without
+changing `BaseSolver` / `BasePipelineSolver` or dispatching existing autorouter
+stages automatically.
 
 ## Typed task catalogs
 
@@ -53,10 +53,14 @@ by task kind in the host/worker entrypoint; do not send callbacks or solver
 instances to workers. Concrete task handlers are registered independently of
 the executor transport.
 
-## Node executors
+## Runtime-selected execution
 
-The normal package entrypoint remains free of Node runtime imports. Import
-execution adapters from `@tscircuit/solver-utils/node`:
+Use the same imports and API in browsers and Node. `createSolverExecutor()`
+detects a native Node-compatible runtime (including Bun). When a worker module
+is supplied, it loads Node's worker support and returns a persistent pool.
+Browsers execute the supplied handlers inline and never load the worker module
+or Node built-ins. Omitting `workerUrl` selects inline execution in either
+runtime. No browser workers are created.
 
 ```ts
 // tasks.ts: the same handlers are used inline and inside workers.
@@ -81,49 +85,59 @@ export const handlers: SolverTaskHandlers<Tasks> = {
 
 ```ts
 // worker.ts: compile this module to worker.js for a plain Node host.
-import { runSolverWorker } from "@tscircuit/solver-utils/node"
+import { runSolverWorker } from "@tscircuit/solver-utils"
 import { handlers, type Tasks } from "./tasks.js"
 
-runSolverWorker<Tasks>(handlers)
+await runSolverWorker<Tasks>(handlers)
 ```
 
 ```ts
-// host.ts
+// host.ts: this code runs in browsers and Node without environment branches.
 import {
   createInlineSolverExecutor,
-  createNodeSolverExecutor,
-} from "@tscircuit/solver-utils/node"
+  createSolverExecutor,
+} from "@tscircuit/solver-utils"
 import { handlers, type Tasks } from "./tasks.js"
 
-const inline = createInlineSolverExecutor<Tasks>(handlers)
-const workers = createNodeSolverExecutor<Tasks>({
+const executor = await createSolverExecutor<Tasks>({
+  handlers,
   workerUrl: new URL("./worker.js", import.meta.url),
   workers: 4,
 })
+const reference = createInlineSolverExecutor<Tasks>(handlers)
 
 try {
   const input = { values: [1, 2, 3] }
   const context = { shared: { scale: 2 } }
-  const expected = await inline.execute("example/sum", input, context)
-  const actual = await workers.execute("example/sum", input, context)
-  // Both are 12; worker count changes where the handler runs.
+  const expected = await reference.execute("example/sum", input, context)
+  const actual = await executor.execute("example/sum", input, context)
+  // Both are 12, whether execution is inline or in Node workers.
 } finally {
-  await Promise.all([inline.dispose(), workers.dispose()])
+  await Promise.all([reference.dispose(), executor.dispose()])
 }
 ```
 
-`workers` must be a positive integer. Workers start lazily on the first cloneable
-request, announce readiness after handler registration, and are reused across
-requests. Each worker executes at most one handler at a time, including async
-handlers. The worker module must be loadable by the host runtime: use JavaScript
-for plain Node, or TypeScript with a supporting runtime such as Bun.
+`workers` defaults to 2 and must be a positive integer. Node workers start lazily
+on the first cloneable request, announce readiness after handler registration,
+and are reused across requests. Each worker executes at most one handler at a
+time, including async handlers. The worker module must be loadable by the host
+runtime: use JavaScript for plain Node, or TypeScript with a supporting runtime
+such as Bun. `runSolverWorker()` is only invoked by that Node worker module;
+importing it in browsers is safe.
+
+The factory is asynchronous to load native support only after runtime detection.
+Its returned executor has the same interface and lifecycle in both environments.
+Node initialization failures surface as errors rather than silently changing
+execution policy.
 
 Inputs and context are snapshotted at submission, even when queued behind other
-tasks. Ordinary outputs are isolated as well. Both adapters use native message
+tasks. Ordinary outputs are isolated as well. Both executors use native message
 transport for cloning so shared buffers retain their backing storage on Bun and
-Node. Shared context can contain buffers, views, and ordinary schema metadata;
+Node. The inline path uses the browser-compatible global `MessageChannel`.
+Shared context can contain buffers, views, and ordinary schema metadata;
 ordinary metadata is copied for each task. Keep large immutable topology arrays
-in shared buffers to avoid copying their bytes.
+in shared buffers to avoid copying their bytes. Tasks using ordinary cloneable
+data also work in browsers where shared memory is unavailable.
 
 Handler exceptions and input/output clone failures reject that request and leave
 the executor usable. Errors preserve `name`, `message`, and optional `stack`;
@@ -137,10 +151,10 @@ retried automatically. `startupTimeoutMs` defaults to 30,000 ms and limits waiti
 for readiness; it does not impose a wall-clock budget on task computation.
 
 `dispose()` rejects new submissions immediately, drains accepted requests, then
-terminates the workers. Repeated calls return the same promise. A task that never
+terminates any workers. Repeated calls return the same promise. A task that never
 finishes also prevents graceful disposal from finishing. The owner must await
 disposal before releasing shared storage. Inline disposal follows the same
-draining rule. No browser worker adapter is included.
+draining rule.
 
 ## Shared memory ownership
 

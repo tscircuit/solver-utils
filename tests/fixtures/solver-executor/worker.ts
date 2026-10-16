@@ -1,4 +1,4 @@
-import { runSolverWorker } from "../../../lib/execution/node/runSolverWorker"
+import { runSolverWorker } from "../../../lib"
 import { handlers, type TestTasks } from "./tasks"
 
-runSolverWorker<TestTasks>(handlers)
+await runSolverWorker<TestTasks>(handlers)

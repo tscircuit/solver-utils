@@ -1,12 +1,13 @@
-import { parentPort } from "node:worker_threads"
 import type { SolverTaskCatalog, SolverTaskContext } from "../SolverExecutor"
 import type { SolverTaskHandlers } from "../SolverTaskHandlers"
+import { isNodeRuntime } from "../isNodeRuntime"
+import { serializeSolverTaskError } from "../solverTaskError"
+import { loadNodeWorkerThreads } from "./loadNodeWorkerThreads"
 import {
   SOLVER_WORKER_PROTOCOL_VERSION,
   type SolverWorkerExecuteMessage,
   type SolverWorkerResponseMessage,
 } from "./solverWorkerProtocol"
-import { serializeSolverTaskError } from "./solverTaskError"
 
 let initialized = false
 
@@ -39,9 +40,13 @@ function assertExecuteMessage(
  * requests are protocol failures and terminate the worker. Task failures,
  * including results that cannot be structured-cloned, are returned to the host.
  */
-export function runSolverWorker<Tasks extends SolverTaskCatalog<Tasks>>(
+export async function runSolverWorker<Tasks extends SolverTaskCatalog<Tasks>>(
   handlers: SolverTaskHandlers<Tasks>,
-): void {
+): Promise<void> {
+  if (!isNodeRuntime()) {
+    throw new Error("runSolverWorker requires a Node-compatible runtime")
+  }
+  const { parentPort } = await loadNodeWorkerThreads()
   if (!parentPort) {
     throw new Error("runSolverWorker must be called inside a worker thread")
   }

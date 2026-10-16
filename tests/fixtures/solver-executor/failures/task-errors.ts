@@ -1,11 +1,10 @@
-import type { SolverTaskDefinition } from "../../../../lib/execution/SolverExecutor"
-import { runSolverWorker } from "../../../../lib/execution/node/runSolverWorker"
+import { runSolverWorker, type SolverTaskDefinition } from "../../../../lib"
 
 type Tasks = {
   probe: SolverTaskDefinition<{ mode: string; value?: number }, unknown>
 }
 
-runSolverWorker<Tasks>({
+await runSolverWorker<Tasks>({
   probe(input) {
     if (input.mode === "throw") throw new TypeError("Task failed deliberately")
     if (input.mode === "uncloneable-output") return () => 1

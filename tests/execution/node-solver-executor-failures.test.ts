@@ -15,7 +15,7 @@ const fixture = (name: string): URL =>
 
 test("worker startup exceptions and exits poison queued and future requests", async (): Promise<void> => {
   for (const name of ["startup-throw", "startup-exit"]) {
-    const executor = createNodeSolverExecutor<Tasks>({
+    const executor = await createNodeSolverExecutor<Tasks>({
       workerUrl: fixture(name),
       workers: 2,
     })
@@ -45,7 +45,7 @@ test("worker startup exceptions and exits poison queued and future requests", as
 })
 
 test("never-ready workers reach their startup deadline even while disposal drains", async (): Promise<void> => {
-  const executor = createNodeSolverExecutor<Tasks>({
+  const executor = await createNodeSolverExecutor<Tasks>({
     workerUrl: fixture("never-ready"),
     workers: 1,
     startupTimeoutMs: 20,
@@ -67,7 +67,7 @@ test("malformed replies, bad versions, unknown IDs, duplicate readiness and exit
     "duplicate-ready",
     "exit",
   ]) {
-    const executor = createNodeSolverExecutor<Tasks>({
+    const executor = await createNodeSolverExecutor<Tasks>({
       workerUrl: fixture("protocol"),
       workers: 1,
     })
@@ -87,7 +87,7 @@ test("malformed replies, bad versions, unknown IDs, duplicate readiness and exit
       await executor.dispose()
     }
   }
-  const executor = createNodeSolverExecutor<Tasks>({
+  const executor = await createNodeSolverExecutor<Tasks>({
     workerUrl: fixture("result-before-ready"),
     workers: 1,
   })
@@ -101,7 +101,7 @@ test("malformed replies, bad versions, unknown IDs, duplicate readiness and exit
 })
 
 test("task errors and uncloneable results reject only their own request", async (): Promise<void> => {
-  const executor = createNodeSolverExecutor<Tasks>({
+  const executor = await createNodeSolverExecutor<Tasks>({
     workerUrl: fixture("task-errors"),
     workers: 1,
   })
@@ -128,7 +128,7 @@ test("task errors and uncloneable results reject only their own request", async 
 })
 
 test("uncloneable input is task-specific and does not start or poison workers", async (): Promise<void> => {
-  const executor = createNodeSolverExecutor<Tasks>({
+  const executor = await createNodeSolverExecutor<Tasks>({
     workerUrl: fixture("task-errors"),
     workers: 1,
   })
@@ -143,7 +143,7 @@ test("uncloneable input is task-specific and does not start or poison workers", 
   } finally {
     await executor.dispose()
   }
-  const neverStarted = createNodeSolverExecutor<Tasks>({
+  const neverStarted = await createNodeSolverExecutor<Tasks>({
     workerUrl: fixture("startup-throw"),
     workers: 1,
   })
@@ -163,7 +163,7 @@ test("fatal failure terminates all shared-memory readers before active requests 
   }
   const shared = new SharedArrayBuffer(2 * Int32Array.BYTES_PER_ELEMENT)
   const control = new Int32Array(shared)
-  const executor = createNodeSolverExecutor<SharedTasks>({
+  const executor = await createNodeSolverExecutor<SharedTasks>({
     workerUrl: fixture("active-shared-memory"),
     workers: 2,
   })

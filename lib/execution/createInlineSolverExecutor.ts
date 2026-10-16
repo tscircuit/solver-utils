@@ -2,8 +2,8 @@ import type {
   SolverExecutor,
   SolverTaskCatalog,
   SolverTaskContext,
-} from "../SolverExecutor"
-import type { SolverTaskHandlers } from "../SolverTaskHandlers"
+} from "./SolverExecutor"
+import type { SolverTaskHandlers } from "./SolverTaskHandlers"
 import { cloneSolverData } from "./cloneSolverData"
 import { normalizeSolverTaskError } from "./solverTaskError"
 

@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test"
 import { createSharedSolverBuffer } from "../../lib/execution/createSharedSolverBuffer"
-import { createInlineSolverExecutor } from "../../lib/execution/node/createInlineSolverExecutor"
+import { createInlineSolverExecutor } from "../../lib/execution/createInlineSolverExecutor"
 import { createNodeSolverExecutor } from "../../lib/execution/node/createNodeSolverExecutor"
 import { handlers, type TestTasks } from "../fixtures/solver-executor/tasks"
 
@@ -22,7 +22,7 @@ test("persistent pools match inline results across worker counts and reuse threa
       ),
     )
     for (const workers of [1, 2, 4]) {
-      const executor = createNodeSolverExecutor<TestTasks>({
+      const executor = await createNodeSolverExecutor<TestTasks>({
         workerUrl,
         workers,
       })
@@ -54,7 +54,7 @@ test("persistent pools match inline results across worker counts and reuse threa
 })
 
 test("requests remain correlated when two workers finish in reversed order", async () => {
-  const executor = createNodeSolverExecutor<TestTasks>({
+  const executor = await createNodeSolverExecutor<TestTasks>({
     workerUrl,
     workers: 2,
   })
@@ -96,7 +96,7 @@ test("requests remain correlated when two workers finish in reversed order", asy
 })
 
 test("queued tasks snapshot ordinary data at submission and retain shared backing", async () => {
-  const executor = createNodeSolverExecutor<TestTasks>({
+  const executor = await createNodeSolverExecutor<TestTasks>({
     workerUrl,
     workers: 1,
   })
@@ -151,7 +151,10 @@ test("queued tasks snapshot ordinary data at submission and retain shared backin
 
 test("task errors have matching inline and worker names/messages and permit reuse", async () => {
   const inline = createInlineSolverExecutor<TestTasks>(handlers)
-  const worker = createNodeSolverExecutor<TestTasks>({ workerUrl, workers: 1 })
+  const worker = await createNodeSolverExecutor<TestTasks>({
+    workerUrl,
+    workers: 1,
+  })
   try {
     for (const mode of ["throw", "reject", "primitive", "output"] as const) {
       const results = await Promise.allSettled([
@@ -179,7 +182,7 @@ test("task errors have matching inline and worker names/messages and permit reus
 })
 
 test("dispose stops submissions immediately and drains accepted queued tasks", async () => {
-  const executor = createNodeSolverExecutor<TestTasks>({
+  const executor = await createNodeSolverExecutor<TestTasks>({
     workerUrl,
     workers: 1,
   })
@@ -205,16 +208,16 @@ test("dispose stops submissions immediately and drains accepted queued tasks", a
 
 test("pool configuration is validated and an unused executor needs no worker", async () => {
   for (const workers of [0, -1, 1.5, NaN, Infinity]) {
-    expect(() => createNodeSolverExecutor({ workerUrl, workers })).toThrow(
-      "positive integer",
-    )
+    await expect(
+      createNodeSolverExecutor({ workerUrl, workers }),
+    ).rejects.toThrow("positive integer")
   }
   for (const startupTimeoutMs of [0, -1, NaN, Infinity, 2_147_483_648]) {
-    expect(() =>
+    await expect(
       createNodeSolverExecutor({ workerUrl, workers: 1, startupTimeoutMs }),
-    ).toThrow("startup timeout")
+    ).rejects.toThrow("startup timeout")
   }
-  const unused = createNodeSolverExecutor<TestTasks>({
+  const unused = await createNodeSolverExecutor<TestTasks>({
     workerUrl: new URL("./missing-worker.js", import.meta.url),
     workers: 1,
   })

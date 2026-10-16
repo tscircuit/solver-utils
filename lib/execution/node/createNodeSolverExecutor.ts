@@ -1,14 +1,15 @@
-import { Worker } from "node:worker_threads"
+import type { Worker } from "node:worker_threads"
 import type {
   SolverExecutor,
   SolverTaskCatalog,
   SolverTaskContext,
 } from "../SolverExecutor"
-import { cloneSolverData } from "./cloneSolverData"
+import { cloneSolverData } from "../cloneSolverData"
 import {
   deserializeSolverTaskError,
   normalizeSolverTaskError,
-} from "./solverTaskError"
+} from "../solverTaskError"
+import { loadNodeWorkerThreads } from "./loadNodeWorkerThreads"
 import {
   SOLVER_WORKER_PROTOCOL_VERSION,
   type SolverWorkerExecuteMessage,
@@ -93,7 +94,10 @@ class NodeSolverExecutor<Tasks extends SolverTaskCatalog<Tasks>>
   private disposal?: Promise<void>
   private termination?: Promise<void>
 
-  constructor(options: NodeSolverExecutorOptions) {
+  constructor(
+    options: NodeSolverExecutorOptions,
+    private readonly WorkerConstructor: typeof Worker,
+  ) {
     if (!Number.isSafeInteger(options.workers) || options.workers < 1) {
       throw new RangeError("Solver worker count must be a positive integer")
     }
@@ -186,7 +190,7 @@ class NodeSolverExecutor<Tasks extends SolverTaskCatalog<Tasks>>
     try {
       for (let index = 0; index < this.workers; index++) {
         const slot: WorkerSlot = {
-          worker: new Worker(this.workerUrl),
+          worker: new this.WorkerConstructor(this.workerUrl),
           ready: false,
         }
         this.slots.push(slot)
@@ -328,8 +332,9 @@ class NodeSolverExecutor<Tasks extends SolverTaskCatalog<Tasks>>
 }
 
 /** Create a lazy, persistent worker pool. Disposal drains accepted requests. */
-export function createNodeSolverExecutor<
+export async function createNodeSolverExecutor<
   Tasks extends SolverTaskCatalog<Tasks>,
->(options: NodeSolverExecutorOptions): SolverExecutor<Tasks> {
-  return new NodeSolverExecutor<Tasks>(options)
+>(options: NodeSolverExecutorOptions): Promise<SolverExecutor<Tasks>> {
+  const { Worker } = await loadNodeWorkerThreads()
+  return new NodeSolverExecutor<Tasks>(options, Worker)
 }

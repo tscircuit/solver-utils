@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test"
 import type { SolverTaskDefinition } from "../../lib/execution/SolverExecutor"
-import { cloneSolverData } from "../../lib/execution/node/cloneSolverData"
-import { createInlineSolverExecutor } from "../../lib/execution/node/createInlineSolverExecutor"
+import { cloneSolverData } from "../../lib/execution/cloneSolverData"
+import { createInlineSolverExecutor } from "../../lib"
 
 test("inline handlers isolate ordinary inputs, shared metadata, and outputs", async () => {
   type Tasks = {

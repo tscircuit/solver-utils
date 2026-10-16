@@ -1,4 +1,4 @@
-import type { SolverWorkerSerializedError } from "./solverWorkerProtocol"
+import type { SolverWorkerSerializedError } from "./node/solverWorkerProtocol"
 
 /** Errors cross transports as primitives; causes and custom fields may not clone. */
 export function serializeSolverTaskError(
