@@ -8,3 +8,4 @@ export type {
   SolverTaskDefinition,
 } from "./execution/SolverExecutor"
 export { createSharedSolverBuffer } from "./execution/createSharedSolverBuffer"
+export type { SolverTaskHandlers } from "./execution/SolverTaskHandlers"
