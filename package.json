@@ -11,12 +11,14 @@
   ],
   "exports": {
     ".": "./dist/index.js",
-    "./react": "./dist/react/index.js"
+    "./react": "./dist/react/index.js",
+    "./runtime/node": "./dist/runtime/node.js",
+    "./runtime/bun": "./dist/runtime/bun.js"
   },
   "type": "module",
   "scripts": {
     "start": "cosmos",
-    "build": "tsup-node ./lib/index.ts --format esm --dts -d dist && tsup-node ./lib/react/index.ts --format esm --dts -d dist/react",
+    "build": "tsup-node ./lib/index.ts ./lib/runtime/node.ts ./lib/runtime/bun.ts --format esm --dts --clean -d dist && tsup-node ./lib/react/index.ts --format esm --dts -d dist/react",
     "build:site": "cosmos-export",
     "format": "biome format --write .",
     "format:check": "biome format ."

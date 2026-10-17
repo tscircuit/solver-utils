@@ -26,3 +26,14 @@ jobs:
 
       - name: Run tests
         run: bun test
+
+      - name: Setup Node for packed consumer checks
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Build package
+        run: bun run build
+
+      - name: Check packed Bun, Node, and browser consumers
+        run: bun scripts/check-runtime-packaging.ts
