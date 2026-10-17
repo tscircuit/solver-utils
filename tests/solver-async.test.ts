@@ -2,6 +2,9 @@ import { expect, test } from "bun:test"
 import {
   BasePipelineSolver,
   BaseSolver,
+  NodeSolverRuntime,
+  SingleThreadSolverRuntime,
+  SolverRuntime,
   definePipelineStep,
   type SolverExecutor,
   type SolverOptions,
@@ -116,7 +119,8 @@ test("new SolverClass supports sync, single-thread async, and worker async with 
   const sync = new SquaresSolver(values)
   sync.solve()
   for (const threads of [1, 2, 4]) {
-    const solver = new SquaresSolver(values, { threads })
+    const runtime = new NodeSolverRuntime({ threads })
+    const solver = new SquaresSolver(values, { runtime })
     await solver.solveAsync()
     expect(solver.getOutput()).toEqual(sync.getOutput())
     expect(solver.iterations).toBe(sync.iterations)
@@ -126,7 +130,11 @@ test("new SolverClass supports sync, single-thread async, and worker async with 
       solver.threadIds.every((id) => (threads === 1 ? id === 0 : id > 0)),
     ).toBe(true)
     expect(new Set(solver.threadIds).size).toBeLessThanOrEqual(threads)
-    // The caller does not own or dispose a task executor.
+    const next = new SquaresSolver(values, { runtime })
+    await next.solveAsync()
+    expect(next.executor).toBe(solver.executor)
+    await runtime.dispose()
+    // The runtime owner, not the solver, disposes shared resources.
     await expect(
       solver.executor!.execute(
         "test/square",
@@ -141,7 +149,8 @@ test("pipeline async solving shares parent resources and preserves logical step 
   const sync = new SquaresPipeline([1, 2, 3])
   sync.solve()
   for (const threads of [1, 2]) {
-    const pipeline = new SquaresPipeline([1, 2, 3], { threads })
+    const runtime = new NodeSolverRuntime({ threads })
+    const pipeline = new SquaresPipeline([1, 2, 3], { runtime })
     // Resume an already-created child, just as solve() can resume step().
     pipeline.step()
     await pipeline.solveAsync()
@@ -154,6 +163,7 @@ test("pipeline async solving shares parent resources and preserves logical step 
     expect(
       first.threadIds.every((id) => (threads === 1 ? id === 0 : id > 0)),
     ).toBe(true)
+    await runtime.dispose()
     await expect(
       second.executor!.execute(
         "test/square",
@@ -164,7 +174,7 @@ test("pipeline async solving shares parent resources and preserves logical step 
   }
 })
 
-test("async failure drains accepted tasks and keeps the solver failure", async () => {
+test("runtime disposal drains accepted tasks after a solver failure", async () => {
   class FailingSolver extends BaseSolver {
     pending?: Promise<unknown>
     executor?: SolverExecutor<TestTasks>
@@ -178,11 +188,13 @@ test("async failure drains accepted tasks and keeps the solver failure", async (
       throw new Error("solver stopped")
     }
   }
-  const solver = new FailingSolver()
+  const runtime = new NodeSolverRuntime({ threads: 2 })
+  const solver = new FailingSolver({ runtime })
   await expect(solver.solveAsync()).rejects.toThrow("solver stopped")
   expect(solver.failed).toBe(true)
   expect(solver.error).toContain("FailingSolver error: Error: solver stopped")
   expect(solver.iterations).toBe(1)
+  await runtime.dispose()
   expect(await solver.pending).toMatchObject({ value: 64 })
   await expect(
     solver.executor!.execute(
@@ -193,7 +205,7 @@ test("async failure drains accepted tasks and keeps the solver failure", async (
   ).rejects.toThrow("disposed")
 })
 
-test("pipeline async failures stop child workers before the parent promise rejects", async () => {
+test("pipeline failures preserve the shared runtime for other solvers", async () => {
   class Child extends SquaresSolver {
     protected override async _stepAsync() {
       this.executor = await this._getTaskExecutor(taskModule)
@@ -209,12 +221,18 @@ test("pipeline async failures stop child workers before the parent promise rejec
       definePipelineStep("child", Child, (instance) => [instance.inputProblem]),
     ]
   }
-  const pipeline = new Pipeline([1])
+  const runtime = new NodeSolverRuntime({ threads: 2 })
+  const pipeline = new Pipeline([1], { runtime })
   await expect(pipeline.solveAsync()).rejects.toThrow("task throw failure")
   const child = pipeline.getSolver<Child>("child")!
   expect(pipeline.failed).toBe(true)
   expect(pipeline.error).toContain("Pipeline error")
   expect(child.failed).toBe(true)
+  const next = new SquaresSolver([3], { runtime })
+  await next.solveAsync()
+  expect(next.output).toEqual([9])
+  expect(next.executor).toBe(child.executor)
+  await runtime.dispose()
   await expect(
     child.executor!.execute("test/square", { value: 1 }, { shared: undefined }),
   ).rejects.toThrow("disposed")
@@ -247,11 +265,92 @@ test("async hooks retain iteration limits, and legacy pipeline overrides remain 
   expect(pipeline.getSolver<SquaresSolver>("first")!.executor).toBeUndefined()
 })
 
-test("constructor thread options are validated without changing existing no-option constructors", () => {
+test("runtime thread options are validated without changing existing no-option constructors", () => {
   for (const threads of [0, -1, 1.5, NaN, Infinity]) {
-    expect(() => new BaseSolver({ threads })).toThrow("positive integer")
+    expect(() => new NodeSolverRuntime({ threads })).toThrow("positive integer")
   }
   expect(new BaseSolver().solved).toBe(false)
+})
+
+test("default execution is single-threaded even when a task worker is available", async () => {
+  const solver = new SquaresSolver([2, 4])
+  expect(solver.runtime).toBeInstanceOf(SingleThreadSolverRuntime)
+  await solver.solveAsync()
+  expect(solver.output).toEqual([4, 16])
+  expect(solver.threadIds).toEqual([0, 0])
+})
+
+test("constructor injection, setRuntime, and global defaults select and reuse a runtime", async () => {
+  const original = SolverRuntime.defaultRuntime
+  const runtime = new NodeSolverRuntime({ threads: 2 })
+  const before = new SquaresSolver([1])
+  try {
+    SolverRuntime.defaultRuntime = runtime
+    const inherited = new SquaresSolver([2])
+    const assigned = new SquaresSolver([3])
+    expect(assigned.setRuntime(runtime)).toBe(assigned)
+    expect(before.runtime).toBe(original)
+    expect(inherited.runtime).toBe(runtime)
+    const explicit = new SquaresSolver([4], { runtime: original })
+    expect(explicit.runtime).toBe(original)
+    await Promise.all([inherited.solveAsync(), assigned.solveAsync()])
+    expect(inherited.executor).toBe(assigned.executor)
+    expect(inherited.threadIds[0]).toBeGreaterThan(0)
+    expect(assigned.output).toEqual([9])
+    expect(runtime.dispose()).toBe(runtime.dispose())
+    await runtime.dispose()
+    await expect(runtime.getExecutor(taskModule)).rejects.toThrow("disposed")
+  } finally {
+    SolverRuntime.defaultRuntime = original
+    await runtime.dispose()
+  }
+})
+
+test("a custom SolverRuntime implementation works without Node APIs", async () => {
+  class CustomRuntime implements SolverRuntime {
+    readonly inline = new SingleThreadSolverRuntime()
+    requests = 0
+    getExecutor<Tasks extends import("../lib").SolverTaskCatalog<Tasks>>(
+      module: SolverTaskModule<Tasks>,
+    ) {
+      this.requests++
+      return this.inline.getExecutor(module)
+    }
+    dispose() {
+      return this.inline.dispose()
+    }
+  }
+  const runtime = new CustomRuntime()
+  try {
+    const solver = new SquaresSolver([3, 5]).setRuntime(runtime)
+    await solver.solveAsync()
+    expect(solver.output).toEqual([9, 25])
+    expect(runtime.requests).toBe(1)
+    expect(solver.threadIds).toEqual([0, 0])
+  } finally {
+    await runtime.dispose()
+  }
+})
+
+test("runtime changes are rejected during an active solve", async () => {
+  let release!: () => void
+  const gate = new Promise<void>((resolve) => {
+    release = resolve
+  })
+  class Waiting extends BaseSolver {
+    protected override async _stepAsync() {
+      await gate
+      this.solved = true
+    }
+  }
+  const solver = new Waiting()
+  const pending = solver.solveAsync()
+  expect(() => solver.setRuntime(SolverRuntime.defaultRuntime)).toThrow(
+    "during solveAsync",
+  )
+  release()
+  await pending
+  expect(solver.setRuntime(SolverRuntime.defaultRuntime)).toBe(solver)
 })
 
 test("browser callers construct the same solver and solve asynchronously without a worker", async () => {
@@ -272,8 +371,10 @@ test("browser callers construct the same solver and solve asynchronously without
         this.solved = true
       }
     }
-    const solver = new Solver({ threads: 4 })
+    const runtime = new api.NodeSolverRuntime({ threads: 4 })
+    const solver = new Solver({ runtime })
     await solver.solveAsync()
+    await runtime.dispose()
     await write(JSON.stringify({ output: solver.output, solved: solver.solved, iterations: solver.iterations, hasFactory: "createSolverExecutor" in api || "createTaskExecutor" in api || "createInlineSolverExecutor" in api }))
   `
   const child = Bun.spawn(

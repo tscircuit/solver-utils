@@ -4,10 +4,10 @@ import type {
   SolverTaskCatalog,
 } from "./execution/SolverExecutor"
 import {
-  SolverExecutionSession,
+  SolverRuntime,
   type SolverOptions,
   type SolverTaskModule,
-} from "./execution/SolverExecutionSession"
+} from "./SolverRuntime"
 
 /**
  * A base class for solvers implementing the standard solve() interface.
@@ -32,15 +32,25 @@ export class BaseSolver {
   timeToSolve?: number
   stats: Record<string, any> = {}
   _setupDone = false
-  readonly #threads: number
-  #executionSession?: SolverExecutionSession
+  #runtime: SolverRuntime
+  #activeRuntime?: SolverRuntime
   #asyncSolve?: Promise<void>
 
   constructor(options: SolverOptions = {}) {
-    this.#threads = options.threads ?? 2
-    if (!Number.isSafeInteger(this.#threads) || this.#threads < 1) {
-      throw new RangeError("Solver thread count must be a positive integer")
+    this.#runtime = options.runtime ?? SolverRuntime.defaultRuntime
+  }
+
+  get runtime(): SolverRuntime {
+    return this.#activeRuntime ?? this.#runtime
+  }
+
+  /** Configure an existing solver without changing its constructor signature. */
+  setRuntime(runtime: SolverRuntime): this {
+    if (this.#asyncSolve || this.#activeRuntime) {
+      throw new Error("Cannot change solver runtime during solveAsync()")
     }
+    this.#runtime = runtime
+    return this
   }
 
   getSolverName(): string {
@@ -123,20 +133,17 @@ export class BaseSolver {
   protected _getTaskExecutor<Tasks extends SolverTaskCatalog<Tasks>>(
     module: SolverTaskModule<Tasks>,
   ): Promise<SolverExecutor<Tasks>> {
-    if (!this.#executionSession) {
-      throw new Error("Task execution is only available during solveAsync()")
-    }
-    return this.#executionSession.getExecutor(module)
+    return this.runtime.getExecutor(module)
   }
 
   /** Advance a child by one logical step using the parent's execution resources. */
   protected async _stepChildAsync(child: BaseSolver): Promise<void> {
-    const previousSession = child.#executionSession
-    child.#executionSession = this.#executionSession
+    const previousRuntime = child.#activeRuntime
+    child.#activeRuntime = this.runtime
     try {
       await child._runStepAsync()
     } finally {
-      child.#executionSession = previousSession
+      child.#activeRuntime = previousRuntime
     }
   }
 
@@ -164,34 +171,20 @@ export class BaseSolver {
 
   /**
    * Solve this same instance, using asynchronous work where implemented.
-   * Existing solvers run their usual steps. All owned workers are drained and
-   * stopped before the promise settles, including when solving fails.
+   * Existing solvers run their usual steps. Runtime owners manage resource
+   * lifetime, so the same runtime can be shared across independent solves.
    */
   solveAsync(): Promise<void> {
     if (this.#asyncSolve) return this.#asyncSolve
-    const session = new SolverExecutionSession(this.#threads)
+    const runtime = this.runtime
     const operation = Promise.resolve().then(async () => {
       const startTime = Date.now()
-      this.#executionSession = session
-      let solveThrew = false
+      this.#activeRuntime = runtime
       try {
         while (!this.solved && !this.failed) await this._runStepAsync()
-      } catch (error) {
-        solveThrew = true
-        throw error
       } finally {
-        try {
-          await session.dispose()
-        } catch (error) {
-          if (!solveThrew) {
-            this.error = `${this.getSolverName()} error: ${error}`
-            this.failed = true
-            throw error
-          }
-        } finally {
-          this.#executionSession = undefined
-          this.timeToSolve = Date.now() - startTime
-        }
+        this.#activeRuntime = undefined
+        this.timeToSolve = Date.now() - startTime
       }
     })
     this.#asyncSolve = operation

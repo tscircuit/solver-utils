@@ -1,33 +1,79 @@
 # Solver execution
 
-Callers construct solver classes as usual. Execution belongs to the solver:
+Callers construct solver classes as usual. Execution is supplied by a runtime:
 
 ```ts
-const solver = new MySolver(problem)
-solver.solve()
-const output = solver.getOutput()
+import { NodeSolverRuntime } from "@tscircuit/solver-utils"
 
-const asyncSolver = new MySolver(problem, { threads: 4 })
-await asyncSolver.solveAsync()
-const sameOutput = asyncSolver.getOutput()
+const solver = new MySolver(problem)
+await solver.solveAsync() // Single-threaded by default, including in Node.
+
+const runtime = new NodeSolverRuntime({ threads: 4 })
+try {
+  const parallelSolver = new MySolver(problem, { runtime })
+  await parallelSolver.solveAsync()
+  const output = parallelSolver.getOutput()
+
+  // Reuse the same runtime and its workers for other solver instances.
+  const anotherSolver = new MySolver(anotherProblem)
+  anotherSolver.setRuntime(runtime)
+  await anotherSolver.solveAsync()
+} finally {
+  await runtime.dispose()
+}
 ```
 
-There is no public solver factory or executor to create or dispose. `.solve()`
-remains synchronous. `.solveAsync()` resolves to `void` and updates the same
-instance: `solved`, `failed`, `error`, `iterations`, `progress`, and `getOutput()`
-retain their roles. The caller does not register task handlers or worker URLs.
+There is no public solver factory. `.solve()` remains synchronous.
+`.solveAsync()` resolves to `void` and updates the same instance: `solved`,
+`failed`, `error`, `iterations`, `progress`, and `getOutput()` retain their roles.
+Existing constructors and `_step()` implementations continue to work unchanged.
 
-`BaseSolver` accepts optional `SolverOptions`; concrete solvers can forward
-these through their existing options or an optional constructor argument.
-`BasePipelineSolver(input, options?)` forwards them automatically. Existing
-constructors and `_step()` implementations continue to work unchanged.
+`BaseSolver` accepts optional `SolverOptions` containing `{ runtime }`.
+Concrete solvers may forward those options through an existing options object
+or an optional constructor argument. `BasePipelineSolver(input, options?)`
+forwards them automatically. `.setRuntime(runtime)` also supports solvers whose
+constructors do not forward options. It returns the solver for chaining and
+rejects changes while asynchronous solving is active.
 
-`threads` defaults to 2 and must be a positive integer. `threads: 1` forces
-inline task execution. In a native Node-compatible runtime (including Bun),
-solvers that implement parallel work can use up to that many workers per task
-module. Browsers always execute tasks inline; Node built-ins are loaded only
-after runtime detection. Existing solvers with no asynchronous implementation
-run their usual steps through `.solveAsync()` without creating workers.
+## Runtime configuration and ownership
+
+`SolverRuntime` is an interface exposing typed task execution and disposal.
+Applications can provide their own implementation. The supplied classes are:
+
+- `SingleThreadSolverRuntime`: portable inline execution, with no workers.
+- `NodeSolverRuntime({ threads, startupTimeoutMs? })`: native worker pools when
+  running in a Node-compatible host, including Bun. `threads` defaults to 2 and
+  bounds each task module's pool; `threads: 1` runs inline. Browsers always run
+  inline, and native built-ins load only after runtime detection.
+
+Every solver captures `SolverRuntime.defaultRuntime` when constructed unless
+an explicit runtime is supplied. The initial default is a
+`SingleThreadSolverRuntime`. Applications can configure a shared default:
+
+```ts
+import { NodeSolverRuntime, SolverRuntime } from "@tscircuit/solver-utils"
+
+const previous = SolverRuntime.defaultRuntime
+const runtime = new NodeSolverRuntime({ threads: 4 })
+SolverRuntime.defaultRuntime = runtime
+try {
+  await new MySolver(problem).solveAsync()
+} finally {
+  SolverRuntime.defaultRuntime = previous
+  await runtime.dispose()
+}
+```
+
+Changing the global default affects new solvers. Existing solvers keep their
+runtime until `.setRuntime()` is called. A pipeline lends its runtime to child
+steps, so children use the same task executors regardless of constructor shape.
+
+The runtime owner manages lifetime. Finishing or failing a solver does not
+dispose the runtime, because other solvers may share it. `runtime.dispose()`
+immediately stops accepting tasks, drains accepted work, and stops all owned
+workers. Repeated disposal returns the same promise. Dispose only after all
+solvers using that runtime have finished; a task that never finishes prevents
+graceful disposal. Borrowed task executors must not be disposed by solvers.
 
 ## Solver lifecycle
 
@@ -36,17 +82,17 @@ progress updates, final acceptance, and iteration-limit handling. By default,
 it calls the existing `step()` method. A solver may override the protected
 `_stepAsync()` hook to perform asynchronous work for one logical step.
 
+The base solver delegates task execution to its runtime. It has no thread-count
+logic, worker creation, Node API calls, or runtime disposal responsibilities.
+Existing solvers with no asynchronous implementation run their usual steps
+without creating workers, even when assigned a Node runtime.
+
 Pipelines advance child solvers through that hook while preserving stage
 transitions, callbacks, outputs, and logical iteration counts. A custom pipeline
-`_step()` override retains its synchronous behavior until it explicitly opts in
-to an asynchronous implementation. Custom coordinators can use the protected
-`_stepChildAsync(child)` helper to advance children with the parent's resources.
-
-One `.solveAsync()` call owns its execution resources. Pipelines share them with
-children, and a stable task module reuses the same pool across stages. The
-promise settles only after accepted tasks drain and workers stop, including
-when a solver step fails. Concurrent `.solveAsync()` calls on one solver return
-the same promise. A task that never finishes prevents graceful completion.
+`_step()` override retains its synchronous behavior until explicitly adapted.
+Custom coordinators can use the protected `_stepChildAsync(child)` helper to
+advance children with the parent's runtime. Concurrent `.solveAsync()` calls
+on one solver return the same promise.
 
 ## Implementing parallel work inside a solver
 
@@ -124,15 +170,16 @@ export class SquaresSolver extends BaseSolver {
 }
 ```
 
-`_getTaskExecutor()` is protected and only available during `.solveAsync()`.
-Keep the task module object stable so related steps and child solvers reuse its
-pool. Do not retain an executor beyond that solve call. Worker modules register
+`_getTaskExecutor()` delegates to `this.runtime.getExecutor()` without creating
+or managing workers. Keep the task module object stable so related steps and
+solver instances reuse its executor. Its lifetime belongs to the runtime. Worker modules register
 handlers with `runSolverWorker()`; the worker module must be loadable by the
 host runtime. Browser execution uses the same handlers without loading that
 module. No browser worker adapter is included.
 
 The underlying `SolverExecutor` interface remains available for infrastructure
-and typed solver integration, but its factories are internal to the package.
+and typed solver integration. Runtimes obtain executors internally; callers
+construct solvers and supply a runtime rather than using executor factories.
 A task's input, output, and shared-context types are specified by
 `SolverTaskDefinition<Input, Output, Shared>`. Use namespaced task kinds when
 combining catalogs and `{ shared: undefined }` when no shared context is needed.

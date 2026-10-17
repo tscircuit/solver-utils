@@ -1,7 +1,7 @@
 import type { GraphicsObject } from "graphics-debug"
 import { setStepOfAllObjects } from "graphics-debug"
 import { BaseSolver } from "./BaseSolver"
-import type { SolverOptions } from "./execution/SolverExecutionSession"
+import type { SolverOptions } from "./SolverRuntime"
 
 export interface PipelineStep<T extends BaseSolver> {
   solverName: string
