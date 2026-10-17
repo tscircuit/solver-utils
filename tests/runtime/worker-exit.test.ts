@@ -18,13 +18,13 @@ test("unexpected zero-code exits reject active and future work on Bun and Node",
   for (const runtime of runtimes) {
     try {
       expect(
-        (await getRejectedError(runtime.executeAsync("runtime-test/exit", {})))
+        (await getRejectedError(runtime.executeAsync("ExitSolver", {})))
           .message,
       ).toContain("exited unexpectedly")
       expect(
         (
           await getRejectedError(
-            runtime.executeAsync("runtime-test/sum", { values: [42] }),
+            runtime.executeAsync("SumSolver", { values: [42] }),
           )
         ).message,
       ).toContain("exited unexpectedly")

@@ -9,13 +9,13 @@ test("Bun and Node pools execute synchronous solvers concurrently and reuse work
     try {
       const buffer = new SharedArrayBuffer(4)
       const outputs = await Promise.all([
-        runtime.executeAsync("runtime-test/barrier", { buffer }),
-        runtime.executeAsync("runtime-test/barrier", { buffer }),
+        runtime.executeAsync("BarrierSolver", { buffer }),
+        runtime.executeAsync("BarrierSolver", { buffer }),
       ])
       expect(outputs).toEqual([2, 2])
       const sums = await Promise.all(
         Array.from({ length: 12 }, (_, n) =>
-          runtime.executeAsync("runtime-test/sum", { values: [n, 1] }),
+          runtime.executeAsync("SumSolver", { values: [n, 1] }),
         ),
       )
       expect(sums).toEqual(

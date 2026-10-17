@@ -20,13 +20,13 @@ test("startup failures are explicit, with an opt-in diagnosed serial policy and 
         expect(
           (
             await getRejectedError(
-              runtime.executeAsync("runtime-test/sum", { values: [42] }),
+              runtime.executeAsync("SumSolver", { values: [42] }),
             )
           ).message,
         ).toContain("packaging is broken")
       } else {
         expect(
-          await runtime.executeAsync("runtime-test/sum", { values: [42] }),
+          await runtime.executeAsync("SumSolver", { values: [42] }),
         ).toEqual({ sum: 42, worker: false })
       }
     } finally {
@@ -54,8 +54,7 @@ test("startup failures are explicit, with an opt-in diagnosed serial policy and 
   })
   try {
     expect(
-      (await getRejectedError(partial.executeAsync("runtime-test/sum", {})))
-        .message,
+      (await getRejectedError(partial.executeAsync("SumSolver", {}))).message,
     ).toContain("second worker failed")
     expect(terminated).toBe(1)
   } finally {
@@ -72,12 +71,10 @@ test("startup failures are explicit, with an opt-in diagnosed serial policy and 
   })
   try {
     expect(
-      (await getRejectedError(exited.executeAsync("runtime-test/sum", {})))
-        .message,
+      (await getRejectedError(exited.executeAsync("SumSolver", {}))).message,
     ).toContain("exited unexpectedly")
     expect(
-      (await getRejectedError(timedOut.executeAsync("runtime-test/sum", {})))
-        .message,
+      (await getRejectedError(timedOut.executeAsync("SumSolver", {}))).message,
     ).toContain("startup timed out")
   } finally {
     await Promise.all([exited.dispose(), timedOut.dispose()])

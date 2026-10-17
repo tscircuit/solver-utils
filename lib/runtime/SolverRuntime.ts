@@ -1,4 +1,5 @@
 import { cloneSolverData } from "./cloneSolverData"
+import { getRegisteredSolverName } from "./getRegisteredSolverName"
 import {
   deserializeSolverError,
   serializeSolverError,
@@ -69,10 +70,9 @@ export class SolverRuntime<
   }
 
   static registerSolver<Input, Output>(
-    name: string,
     Solver: SolverConstructor<Input, Output>,
   ): void {
-    if (!name) throw new Error("Solver name must not be empty")
+    const name = getRegisteredSolverName(Solver)
     const existing = constructors.get(name)
     if (existing && existing !== Solver) {
       throw new Error('Solver "' + name + '" is already registered')
@@ -135,11 +135,32 @@ export class SolverRuntime<
     }
   }
 
+  executeAsync<Solver extends SolverConstructor<any, any>>(
+    Solver: Solver,
+    input: ConstructorParameters<Solver>[0],
+  ): Promise<ReturnType<InstanceType<Solver>["getOutput"]>>
   executeAsync<Name extends keyof Tasks & string>(
     name: Name,
     input: Tasks[Name]["input"],
-  ): Promise<Tasks[Name]["output"]> {
+  ): Promise<Tasks[Name]["output"]>
+  executeAsync(
+    solver: string | SolverConstructor<any, any>,
+    input: unknown,
+  ): Promise<any> {
     if (this.stopped) return Promise.reject(this.stopped)
+    let name: string
+    try {
+      name =
+        typeof solver === "string" ? solver : getRegisteredSolverName(solver)
+      const registered = constructors.get(name)
+      if (typeof solver !== "string" && registered && registered !== solver) {
+        throw new Error(
+          'Solver "' + name + '" is registered with a different constructor',
+        )
+      }
+    } catch (error) {
+      return Promise.reject(error)
+    }
     // Snapshot at submission, before initialization or queueing can yield.
     const snapshot = cloneSolverData(input)
     return new Promise((resolve, reject) => {

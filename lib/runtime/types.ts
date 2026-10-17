@@ -8,6 +8,11 @@ export type AnySolverCatalog = Record<string, { input: any; output: any }>
 export interface SolverRuntimeExecutor<
   Tasks extends SolverRuntimeCatalog<Tasks> = AnySolverCatalog,
 > {
+  executeAsync<Solver extends SolverConstructor<any, any>>(
+    Solver: Solver,
+    input: ConstructorParameters<Solver>[0],
+  ): Promise<ReturnType<InstanceType<Solver>["getOutput"]>>
+
   executeAsync<Name extends keyof Tasks & string>(
     name: Name,
     input: Tasks[Name]["input"],
@@ -22,9 +27,10 @@ export interface RuntimeSolver<Output = unknown> {
   error?: string | null
 }
 
-export type SolverConstructor<Input, Output> = new (
-  input: Input,
-) => RuntimeSolver<Output>
+export type SolverConstructor<Input, Output> = {
+  new (input: Input): RuntimeSolver<Output>
+  readonly solverName: string
+}
 
 /** Small transport boundary; no platform imports in the default entrypoint. */
 export interface SolverMessageEndpoint {

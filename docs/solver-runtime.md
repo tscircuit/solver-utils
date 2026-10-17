@@ -8,6 +8,8 @@ importing Node builtins or an embedded worker payload.
 import { BaseSolver, SolverRuntime } from "@tscircuit/solver-utils"
 
 class SumSolver extends BaseSolver {
+  static readonly solverName: string = "SumSolver"
+
   private sum = 0
 
   constructor(private input: { values: number[] }) {
@@ -24,20 +26,25 @@ class SumSolver extends BaseSolver {
   }
 }
 
-SolverRuntime.registerSolver("example/sum", SumSolver)
+SolverRuntime.registerSolver(SumSolver)
 
 const runtime = new SolverRuntime()
 try {
-  const sum = await runtime.executeAsync("example/sum", { values: [20, 22] })
+  const sum = await runtime.executeAsync("SumSolver", { values: [20, 22] })
+  const sameSum = await runtime.executeAsync(SumSolver, { values: [20, 22] })
 } finally {
   await runtime.dispose()
 }
 ```
 
-No extra serial implementation argument is needed. A name may be registered
-again with the same constructor; a different constructor under that name throws.
-Registration modules must execute before dispatch. Keep names namespaced and
-include those modules in both the host and worker bundles.
+Every registered class must define its own non-empty static `solverName`, including
+subclasses. No constructor-name inference or separate name/fallback argument is
+used. Registration is idempotent for the same class; a different class with the
+same name throws. Class invocation resolves that static name and uses the same
+registry and worker selection as string invocation; it does not auto-register.
+Only the name and data are sent to workers, never the class itself. Class calls
+infer constructor input and `getOutput()` types; typed catalogs check string calls.
+Registration modules must execute in both the host and worker bundles.
 
 ## Synchronous leaves and async orchestration
 
@@ -53,13 +60,13 @@ child requests:
 import type { SolverRuntimeExecutor } from "@tscircuit/solver-utils"
 
 type Tasks = {
-  "example/sum": { input: { values: number[] }; output: number }
+  "SumSolver": { input: { values: number[] }; output: number }
 }
 
 // Inside a parent solver:
 async solveAsync(runtime: SolverRuntimeExecutor<Tasks>): Promise<void> {
   const pending = this.groups.map((values) =>
-    runtime.executeAsync("example/sum", { values }),
+    runtime.executeAsync("SumSolver", { values }),
   )
   this.outputs = await Promise.all(pending) // submission order, not arrival order
   this.solved = true

@@ -27,6 +27,7 @@ async function bundle(
     target,
     format,
     splitting: false,
+    minify: true,
   })
   if (!result.success)
     throw new AggregateError(result.logs, "Consumer bundle failed")
@@ -84,6 +85,7 @@ try {
     `
 import { BaseSolver, SolverRuntime } from "@tscircuit/solver-utils"
 export class SquareSolver extends BaseSolver {
+  static solverName = "SquareSolver"
   constructor(input) { super(); this.input = input }
   _step() {
     this.output = { square: this.input.value ** 2, worker: globalThis.solverWorker === true }
@@ -91,25 +93,27 @@ export class SquareSolver extends BaseSolver {
   }
   getOutput() { return this.output }
 }
-SolverRuntime.registerSolver("square", SquareSolver)
+SolverRuntime.registerSolver(SquareSolver)
 export class ParentSolver extends BaseSolver {
+  static solverName = "ParentSolver"
   constructor(input) { super(); this.input = input }
   _step() {
     this.output = this.input.values.map(value => value ** 2)
     this.solved = true
   }
   async solveAsync(runtime) {
-    const results = await Promise.all(this.input.values.map(value => runtime.executeAsync("square", { value })))
+    const results = await Promise.all(this.input.values.map(value => runtime.executeAsync("SquareSolver", { value })))
     this.output = results.map(result => result.square)
     this.solved = true
   }
   getOutput() { return this.output }
 }
 class FailureSolver extends BaseSolver {
+  static solverName = "FailureSolver"
   _step() { throw new TypeError("intentional packed worker failure") }
 }
-SolverRuntime.registerSolver("parent", ParentSolver)
-SolverRuntime.registerSolver("failure", FailureSolver)
+SolverRuntime.registerSolver(ParentSolver)
+SolverRuntime.registerSolver(FailureSolver)
 `,
   )
   for (const target of ["node", "bun"] as const) {
@@ -141,27 +145,28 @@ import { SolverRuntime as InlineRuntime } from "@tscircuit/solver-utils"
 import { SolverRuntime } from "@tscircuit/solver-utils/runtime/${target}"
 import source from "./source-${target}.js"
 import { ParentSolver, SquareSolver } from "./solvers"
-InlineRuntime.registerSolver("local-only", SquareSolver)
+class LocalOnlySolver extends SquareSolver { static solverName = "LocalOnlySolver" }
+InlineRuntime.registerSolver(LocalOnlySolver)
 const inline = new InlineRuntime()
 const threads = new SolverRuntime({ workerSource: source, workerCount: 2, requireWorker: true })
 const flexible = new SolverRuntime({ workerSource: source, workerCount: 1 })
 try {
   const inputs = Array.from({ length: 8 }, (_, value) => ({ value }))
-  const serial = await Promise.all(inputs.map(input => inline.executeAsync("square", input)))
-  const parallel = await Promise.all(inputs.map(input => threads.executeAsync("square", input)))
+  const serial = await Promise.all(inputs.map(input => inline.executeAsync("SquareSolver", input)))
+  const parallel = await Promise.all(inputs.map(input => threads.executeAsync(SquareSolver, input)))
   assert.deepEqual(parallel.map(x => x.square), serial.map(x => x.square))
   assert.ok(parallel.every(x => x.worker))
-  const strict = await Promise.allSettled([threads.executeAsync("local-only", { value: 2 })])
+  const strict = await Promise.allSettled([threads.executeAsync("LocalOnlySolver", { value: 2 })])
   assert.equal(strict[0].status, "rejected")
-  assert.deepEqual(await flexible.executeAsync("local-only", { value: 3 }), { square: 9, worker: false })
+  assert.deepEqual(await flexible.executeAsync(LocalOnlySolver, { value: 3 }), { square: 9, worker: false })
   const input = { values: [1, 2, 3, 4] }
   const serialParent = new ParentSolver(input)
   serialParent.solve()
   const parent = new ParentSolver(input)
   await parent.solveAsync(threads)
   assert.deepEqual(parent.getOutput(), serialParent.getOutput())
-  assert.deepEqual(await flexible.executeAsync("parent", input), serialParent.getOutput())
-  await assert.rejects(threads.executeAsync("failure", {}), { name: "TypeError", message: "intentional packed worker failure" })
+  assert.deepEqual(await flexible.executeAsync(ParentSolver, input), serialParent.getOutput())
+  await assert.rejects(threads.executeAsync("FailureSolver", {}), { name: "TypeError", message: "intentional packed worker failure" })
 } finally {
   await Promise.all([inline.dispose(), threads.dispose(), flexible.dispose()])
 }
@@ -203,7 +208,7 @@ import { SolverRuntime } from "@tscircuit/solver-utils"
 import "./solvers"
 globalThis.checkRuntime = async () => {
   const runtime = new SolverRuntime()
-  try { return await runtime.executeAsync("square", { value: 7 }) }
+  try { return await runtime.executeAsync("SquareSolver", { value: 7 }) }
   finally { await runtime.dispose() }
 }
 `,
