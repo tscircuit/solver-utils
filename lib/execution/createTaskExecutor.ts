@@ -3,7 +3,7 @@ import type { SolverTaskHandlers } from "./SolverTaskHandlers"
 import { createInlineSolverExecutor } from "./createInlineSolverExecutor"
 import { isNodeRuntime } from "./isNodeRuntime"
 
-export type SolverExecutorOptions<Tasks extends SolverTaskCatalog<Tasks>> = {
+export type TaskExecutorOptions<Tasks extends SolverTaskCatalog<Tasks>> = {
   /** Same task implementations used inline and registered by the worker module. */
   handlers: SolverTaskHandlers<Tasks>
   /** Module registering handlers with runSolverWorker; only loaded in Node. */
@@ -18,9 +18,9 @@ export type SolverExecutorOptions<Tasks extends SolverTaskCatalog<Tasks>> = {
  * Use a persistent pool in Node when a worker module is supplied, otherwise
  * execute inline. Importing this API never loads native Node modules.
  */
-export async function createSolverExecutor<
+export async function createTaskExecutor<
   Tasks extends SolverTaskCatalog<Tasks>,
->(options: SolverExecutorOptions<Tasks>): Promise<SolverExecutor<Tasks>> {
+>(options: TaskExecutorOptions<Tasks>): Promise<SolverExecutor<Tasks>> {
   const workers = options.workers ?? 2
   if (!Number.isSafeInteger(workers) || workers < 1) {
     throw new RangeError("Solver worker count must be a positive integer")

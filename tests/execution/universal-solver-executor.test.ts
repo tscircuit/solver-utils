@@ -1,8 +1,6 @@
 import { expect, test } from "bun:test"
-import {
-  createInlineSolverExecutor,
-  createSolverExecutor,
-} from "../../lib/index"
+import { createInlineSolverExecutor } from "../../lib/execution/createInlineSolverExecutor"
+import { createTaskExecutor } from "../../lib/execution/createTaskExecutor"
 import { handlers, type TestTasks } from "../fixtures/solver-executor/tasks"
 
 const workerUrl = new URL(
@@ -10,7 +8,7 @@ const workerUrl = new URL(
   import.meta.url,
 )
 
-test("the public factory uses native workers and matches inline results at each width", async (): Promise<void> => {
+test("the internal task executor uses native workers and matches inline results at each width", async (): Promise<void> => {
   const inline = createInlineSolverExecutor<TestTasks>(handlers)
   const inputs = Array.from({ length: 12 }, (_, value) => ({
     value,
@@ -23,7 +21,7 @@ test("the public factory uses native workers and matches inline results at each 
       ),
     )
     for (const workers of [undefined, 1, 2, 4]) {
-      const executor = await createSolverExecutor<TestTasks>({
+      const executor = await createTaskExecutor<TestTasks>({
         handlers,
         workerUrl,
         workers,
@@ -55,8 +53,8 @@ test("the public factory uses native workers and matches inline results at each 
   }
 })
 
-test("omitting the worker module selects inline execution even on a Node host", async (): Promise<void> => {
-  const executor = await createSolverExecutor<TestTasks>({
+test("omitting the task worker module selects inline execution even on a Node host", async (): Promise<void> => {
+  const executor = await createTaskExecutor<TestTasks>({
     handlers,
     workers: 4,
   })
@@ -69,10 +67,10 @@ test("omitting the worker module selects inline execution even on a Node host", 
   }
 })
 
-test("the public factory validates worker counts before selecting a runtime", async (): Promise<void> => {
+test("the internal task executor validates worker counts before selecting a runtime", async (): Promise<void> => {
   for (const workers of [0, -1, 1.5, NaN, Infinity]) {
     await expect(
-      createSolverExecutor<TestTasks>({ handlers, workers }),
+      createTaskExecutor<TestTasks>({ handlers, workers }),
     ).rejects.toThrow("positive integer")
   }
 })
@@ -91,7 +89,10 @@ test("the public entrypoint bundles for browsers without externalizing Node buil
 })
 
 test("a browser-like host ignores worker configuration and preserves inline semantics", async (): Promise<void> => {
-  const entrypoint = new URL("../../lib/index.ts", import.meta.url).href
+  const entrypoint = new URL(
+    "../../lib/execution/createTaskExecutor.ts",
+    import.meta.url,
+  ).href
   for (const simulatedProcess of [
     "undefined",
     JSON.stringify({
@@ -102,7 +103,7 @@ test("a browser-like host ignores worker configuration and preserves inline sema
     const script = `
     const writeResult = Bun.write.bind(Bun, Bun.stdout)
     Object.defineProperty(globalThis, "process", { value: ${simulatedProcess}, configurable: true })
-    const { createSolverExecutor } = await import(${JSON.stringify(entrypoint)})
+    const { createTaskExecutor } = await import(${JSON.stringify(entrypoint)})
     let handlerOutput
     const handlers = {
       "local/mutate": (input, context) => {
@@ -118,7 +119,7 @@ test("a browser-like host ignores worker configuration and preserves inline sema
         view: new Int32Array(context.shared.buffer),
       }),
     }
-    const executor = await createSolverExecutor({
+    const executor = await createTaskExecutor({
       handlers,
       workers: 4,
       workerUrl: new URL("file:///a-worker-that-does-not-exist.js"),

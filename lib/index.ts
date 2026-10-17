@@ -9,9 +9,8 @@ export type {
 } from "./execution/SolverExecutor"
 export { createSharedSolverBuffer } from "./execution/createSharedSolverBuffer"
 export type { SolverTaskHandlers } from "./execution/SolverTaskHandlers"
-export {
-  createSolverExecutor,
-  type SolverExecutorOptions,
-} from "./execution/createSolverExecutor"
-export { createInlineSolverExecutor } from "./execution/createInlineSolverExecutor"
+export type {
+  SolverOptions,
+  SolverTaskModule,
+} from "./execution/SolverExecutionSession"
 export { runSolverWorker } from "./execution/node/runSolverWorker"

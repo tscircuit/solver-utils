@@ -1,4 +1,13 @@
 import type { GraphicsObject } from "graphics-debug"
+import type {
+  SolverExecutor,
+  SolverTaskCatalog,
+} from "./execution/SolverExecutor"
+import {
+  SolverExecutionSession,
+  type SolverOptions,
+  type SolverTaskModule,
+} from "./execution/SolverExecutionSession"
 
 /**
  * A base class for solvers implementing the standard solve() interface.
@@ -23,6 +32,16 @@ export class BaseSolver {
   timeToSolve?: number
   stats: Record<string, any> = {}
   _setupDone = false
+  readonly #threads: number
+  #executionSession?: SolverExecutionSession
+  #asyncSolve?: Promise<void>
+
+  constructor(options: SolverOptions = {}) {
+    this.#threads = options.threads ?? 2
+    if (!Number.isSafeInteger(this.#threads) || this.#threads < 1) {
+      throw new RangeError("Solver thread count must be a positive integer")
+    }
+  }
 
   getSolverName(): string {
     return this.constructor.name
@@ -39,12 +58,7 @@ export class BaseSolver {
 
   /** DO NOT OVERRIDE! Override _step() instead */
   step() {
-    if (!this._setupDone) {
-      this.setup()
-    }
-    if (this.solved) return
-    if (this.failed) return
-    this.iterations++
+    if (!this._beginStep()) return
     try {
       this._step()
     } catch (e) {
@@ -52,6 +66,17 @@ export class BaseSolver {
       this.failed = true
       throw e
     }
+    this._finishStep()
+  }
+
+  private _beginStep(): boolean {
+    if (!this._setupDone) this.setup()
+    if (this.solved || this.failed) return false
+    this.iterations++
+    return true
+  }
+
+  private _finishStep(): void {
     if (!this.solved && this.iterations >= this.MAX_ITERATIONS) {
       this.tryFinalAcceptance()
     }
@@ -67,6 +92,53 @@ export class BaseSolver {
 
   /** Override this method to implement solver logic */
   _step() {}
+
+  /** Override only when this solver has deterministic asynchronous work. */
+  protected async _stepAsync(): Promise<void> {
+    this._step()
+  }
+
+  private async _runStepAsync(): Promise<void> {
+    // Existing solvers retain their exact step implementation, including any
+    // legacy override of step(). No algorithm changes are needed to opt in.
+    if (
+      this._stepAsync === BaseSolver.prototype._stepAsync ||
+      this.step !== BaseSolver.prototype.step
+    ) {
+      this.step()
+      return
+    }
+    if (!this._beginStep()) return
+    try {
+      await this._stepAsync()
+    } catch (error) {
+      this.error = `${this.getSolverName()} error: ${error}`
+      this.failed = true
+      throw error
+    }
+    this._finishStep()
+  }
+
+  /** Internal task execution; callers still construct and solve this class. */
+  protected _getTaskExecutor<Tasks extends SolverTaskCatalog<Tasks>>(
+    module: SolverTaskModule<Tasks>,
+  ): Promise<SolverExecutor<Tasks>> {
+    if (!this.#executionSession) {
+      throw new Error("Task execution is only available during solveAsync()")
+    }
+    return this.#executionSession.getExecutor(module)
+  }
+
+  /** Advance a child by one logical step using the parent's execution resources. */
+  protected async _stepChildAsync(child: BaseSolver): Promise<void> {
+    const previousSession = child.#executionSession
+    child.#executionSession = this.#executionSession
+    try {
+      await child._runStepAsync()
+    } finally {
+      child.#executionSession = previousSession
+    }
+  }
 
   getConstructorParams() {
     throw new Error("getConstructorParams not implemented")
@@ -88,6 +160,50 @@ export class BaseSolver {
     }
     const endTime = Date.now()
     this.timeToSolve = endTime - startTime
+  }
+
+  /**
+   * Solve this same instance, using asynchronous work where implemented.
+   * Existing solvers run their usual steps. All owned workers are drained and
+   * stopped before the promise settles, including when solving fails.
+   */
+  solveAsync(): Promise<void> {
+    if (this.#asyncSolve) return this.#asyncSolve
+    const session = new SolverExecutionSession(this.#threads)
+    const operation = Promise.resolve().then(async () => {
+      const startTime = Date.now()
+      this.#executionSession = session
+      let solveThrew = false
+      try {
+        while (!this.solved && !this.failed) await this._runStepAsync()
+      } catch (error) {
+        solveThrew = true
+        throw error
+      } finally {
+        try {
+          await session.dispose()
+        } catch (error) {
+          if (!solveThrew) {
+            this.error = `${this.getSolverName()} error: ${error}`
+            this.failed = true
+            throw error
+          }
+        } finally {
+          this.#executionSession = undefined
+          this.timeToSolve = Date.now() - startTime
+        }
+      }
+    })
+    this.#asyncSolve = operation
+    void operation.then(
+      () => {
+        this.#asyncSolve = undefined
+      },
+      () => {
+        this.#asyncSolve = undefined
+      },
+    )
+    return operation
   }
 
   visualize(): GraphicsObject {

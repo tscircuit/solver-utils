@@ -1,6 +1,7 @@
 import type { GraphicsObject } from "graphics-debug"
 import { setStepOfAllObjects } from "graphics-debug"
 import { BaseSolver } from "./BaseSolver"
+import type { SolverOptions } from "./execution/SolverExecutionSession"
 
 export interface PipelineStep<T extends BaseSolver> {
   solverName: string
@@ -43,8 +44,8 @@ export abstract class BasePipelineSolver<TInput> extends BaseSolver {
 
   abstract pipelineDef: PipelineStep<any>[]
 
-  constructor(inputProblem: TInput) {
-    super()
+  constructor(inputProblem: TInput, options?: SolverOptions) {
+    super(options)
     this.inputProblem = inputProblem
     this.MAX_ITERATIONS = 1e6
   }
@@ -58,29 +59,58 @@ export abstract class BasePipelineSolver<TInput> extends BaseSolver {
 
     if (this.activeSubSolver) {
       this.activeSubSolver.step()
-      if (this.activeSubSolver.solved) {
-        this.endTimeOfStage[pipelineStageDef.solverName] = performance.now()
-        this.timeSpentOnStage[pipelineStageDef.solverName] =
-          this.endTimeOfStage[pipelineStageDef.solverName]! -
-          this.startTimeOfStage[pipelineStageDef.solverName]!
-
-        // Automatically store the solver's output
-        const output = this.activeSubSolver.getOutput()
-        if (output !== null) {
-          this.pipelineOutputs[pipelineStageDef.solverName] = output
-        }
-
-        pipelineStageDef.onSolved?.(this)
-        this.activeSubSolver = null
-        this.currentPipelineStageIndex++
-      } else if (this.activeSubSolver.failed) {
-        this.error = this.activeSubSolver?.error
-        this.failed = true
-        this.activeSubSolver = null
-      }
+      this._completePipelineStep(pipelineStageDef)
       return
     }
 
+    this._startPipelineStep(pipelineStageDef)
+  }
+
+  protected override async _stepAsync(): Promise<void> {
+    // Preserve custom synchronous pipeline steps until their implementation
+    // explicitly opts in to async stepping.
+    if (this._step !== BasePipelineSolver.prototype._step) {
+      this._step()
+      return
+    }
+    const pipelineStageDef = this.pipelineDef[this.currentPipelineStageIndex]
+    if (!pipelineStageDef) {
+      this.solved = true
+      return
+    }
+    if (this.activeSubSolver) {
+      await this._stepChildAsync(this.activeSubSolver)
+      this._completePipelineStep(pipelineStageDef)
+      return
+    }
+    this._startPipelineStep(pipelineStageDef)
+  }
+
+  private _completePipelineStep(pipelineStageDef: PipelineStep<any>): void {
+    const child = this.activeSubSolver!
+    if (child.solved) {
+      this.endTimeOfStage[pipelineStageDef.solverName] = performance.now()
+      this.timeSpentOnStage[pipelineStageDef.solverName] =
+        this.endTimeOfStage[pipelineStageDef.solverName]! -
+        this.startTimeOfStage[pipelineStageDef.solverName]!
+
+      // Automatically store the solver's output
+      const output = child.getOutput()
+      if (output !== null) {
+        this.pipelineOutputs[pipelineStageDef.solverName] = output
+      }
+
+      pipelineStageDef.onSolved?.(this)
+      this.activeSubSolver = null
+      this.currentPipelineStageIndex++
+    } else if (child.failed) {
+      this.error = child.error
+      this.failed = true
+      this.activeSubSolver = null
+    }
+  }
+
+  private _startPipelineStep(pipelineStageDef: PipelineStep<any>): void {
     const constructorParams = pipelineStageDef.getConstructorParams(this)
     this.activeSubSolver = new pipelineStageDef.solverClass(
       ...constructorParams,

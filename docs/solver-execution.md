@@ -1,201 +1,184 @@
-# Shared solver execution contract
+# Solver execution
 
-`SolverExecutor` is a structural contract for executing typed solver tasks.
-Hypergraph, high-density, repair, and other solvers can depend on
-`@tscircuit/solver-utils` without importing a parent autorouter package.
-
-The host owns execution resources. Solvers own their algorithms and the order
-in which results affect them. Executors run explicitly registered tasks without
-changing `BaseSolver` / `BasePipelineSolver` or dispatching existing autorouter
-stages automatically.
-
-## Typed task catalogs
-
-Each solver defines a catalog with input, result, and shared-context types:
+Callers construct solver classes as usual. Execution belongs to the solver:
 
 ```ts
-import {
-  createSharedSolverBuffer,
-  type SolverExecutor,
-  type SolverTaskDefinition,
-} from "@tscircuit/solver-utils"
+const solver = new MySolver(problem)
+solver.solve()
+const output = solver.getOutput()
 
-type RouteAnalysisTasks = {
-  "hypergraph/analyze-route": SolverTaskDefinition<
-    { routeId: number },
-    { usedPortIds: number[]; iterations: number },
-    { routeEnds: SharedArrayBuffer }
-  >
-}
-
-async function analyzeRoutes(
-  executor: SolverExecutor<RouteAnalysisTasks>,
-  endpoints: Int32Array,
-): Promise<number[][]> {
-  const shared = { routeEnds: createSharedSolverBuffer(endpoints) }
-  const routeCount = endpoints.length / 2
-  const results = await Promise.all(
-    Array.from({ length: routeCount }, (_, routeId) =>
-      executor.execute("hypergraph/analyze-route", { routeId }, { shared }),
-    ),
-  )
-  return results.map((result) => result.usedPortIds)
-}
+const asyncSolver = new MySolver(problem, { threads: 4 })
+await asyncSolver.solveAsync()
+const sameOutput = asyncSolver.getOutput()
 ```
 
-This is an example task definition, not a registered handler. A host executor
-can implement the intersection of several catalogs and be passed to solvers
-using smaller catalogs. Use namespaced task kinds when combining packages.
-Pass `{ shared: undefined }` for a task without shared context.
+There is no public solver factory or executor to create or dispose. `.solve()`
+remains synchronous. `.solveAsync()` resolves to `void` and updates the same
+instance: `solved`, `failed`, `error`, `iterations`, `progress`, and `getOutput()`
+retain their roles. The caller does not register task handlers or worker URLs.
 
-Inputs, results, and context must be structured-cloneable data. Register handlers
-by task kind in the host/worker entrypoint; do not send callbacks or solver
-instances to workers. Concrete task handlers are registered independently of
-the executor transport.
+`BaseSolver` accepts optional `SolverOptions`; concrete solvers can forward
+these through their existing options or an optional constructor argument.
+`BasePipelineSolver(input, options?)` forwards them automatically. Existing
+constructors and `_step()` implementations continue to work unchanged.
 
-## Runtime-selected execution
+`threads` defaults to 2 and must be a positive integer. `threads: 1` forces
+inline task execution. In a native Node-compatible runtime (including Bun),
+solvers that implement parallel work can use up to that many workers per task
+module. Browsers always execute tasks inline; Node built-ins are loaded only
+after runtime detection. Existing solvers with no asynchronous implementation
+run their usual steps through `.solveAsync()` without creating workers.
 
-Use the same imports and API in browsers and Node. `createSolverExecutor()`
-detects a native Node-compatible runtime (including Bun). When a worker module
-is supplied, it loads Node's worker support and returns a persistent pool.
-Browsers execute the supplied handlers inline and never load the worker module
-or Node built-ins. Omitting `workerUrl` selects inline execution in either
-runtime. No browser workers are created.
+## Solver lifecycle
+
+`BaseSolver.solveAsync()` performs the usual setup, logical iterations,
+progress updates, final acceptance, and iteration-limit handling. By default,
+it calls the existing `step()` method. A solver may override the protected
+`_stepAsync()` hook to perform asynchronous work for one logical step.
+
+Pipelines advance child solvers through that hook while preserving stage
+transitions, callbacks, outputs, and logical iteration counts. A custom pipeline
+`_step()` override retains its synchronous behavior until it explicitly opts in
+to an asynchronous implementation. Custom coordinators can use the protected
+`_stepChildAsync(child)` helper to advance children with the parent's resources.
+
+One `.solveAsync()` call owns its execution resources. Pipelines share them with
+children, and a stable task module reuses the same pool across stages. The
+promise settles only after accepted tasks drain and workers stop, including
+when a solver step fails. Concurrent `.solveAsync()` calls on one solver return
+the same promise. A task that never finishes prevents graceful completion.
+
+## Implementing parallel work inside a solver
+
+Task catalogs and handlers belong to the solver implementation. They are not
+part of its caller's setup. Keep handlers in a module that both the solver and
+its Node worker entrypoint can import:
 
 ```ts
-// tasks.ts: the same handlers are used inline and inside workers.
+// tasks.ts
 import type {
   SolverTaskDefinition,
   SolverTaskHandlers,
 } from "@tscircuit/solver-utils"
 
 export type Tasks = {
-  "example/sum": SolverTaskDefinition<
-    { values: number[] },
-    number,
-    { scale: number }
-  >
+  square: SolverTaskDefinition<number, number>
 }
 
-export const handlers: SolverTaskHandlers<Tasks> = {
-  "example/sum": (input, context) =>
-    input.values.reduce((total, value) => total + value, 0) * context.shared.scale,
-}
+export const square = (value: number) => value * value
+export const handlers: SolverTaskHandlers<Tasks> = { square }
 ```
 
 ```ts
-// worker.ts: compile this module to worker.js for a plain Node host.
+// worker.ts: ship this module as worker.js for a plain Node host.
 import { runSolverWorker } from "@tscircuit/solver-utils"
-import { handlers, type Tasks } from "./tasks.js"
+import { handlers } from "./tasks.js"
 
-await runSolverWorker<Tasks>(handlers)
+await runSolverWorker(handlers)
 ```
 
 ```ts
-// host.ts: this code runs in browsers and Node without environment branches.
+// SquaresSolver.ts
 import {
-  createInlineSolverExecutor,
-  createSolverExecutor,
+  BaseSolver,
+  type SolverOptions,
+  type SolverTaskModule,
 } from "@tscircuit/solver-utils"
-import { handlers, type Tasks } from "./tasks.js"
+import { handlers, square, type Tasks } from "./tasks.js"
 
-const executor = await createSolverExecutor<Tasks>({
+const taskModule: SolverTaskModule<Tasks> = {
   handlers,
   workerUrl: new URL("./worker.js", import.meta.url),
-  workers: 4,
-})
-const reference = createInlineSolverExecutor<Tasks>(handlers)
+}
 
-try {
-  const input = { values: [1, 2, 3] }
-  const context = { shared: { scale: 2 } }
-  const expected = await reference.execute("example/sum", input, context)
-  const actual = await executor.execute("example/sum", input, context)
-  // Both are 12, whether execution is inline or in Node workers.
-} finally {
-  await Promise.all([reference.dispose(), executor.dispose()])
+export class SquaresSolver extends BaseSolver {
+  output: number[] = []
+
+  constructor(private values: number[], options?: SolverOptions) {
+    super(options)
+  }
+
+  override _step() {
+    this.output = this.values.map(square)
+    this.solved = true
+  }
+
+  protected override async _stepAsync() {
+    const executor = await this._getTaskExecutor(taskModule)
+    const results = await Promise.allSettled(
+      this.values.map((value) =>
+        executor.execute("square", value, { shared: undefined }),
+      ),
+    )
+    // Commit results, or select the first task error, in logical input order.
+    this.output = results.map((result) => {
+      if (result.status === "rejected") throw result.reason
+      return result.value
+    })
+    this.solved = true
+  }
+
+  override getOutput() {
+    return this.output
+  }
 }
 ```
 
-`workers` defaults to 2 and must be a positive integer. Node workers start lazily
-on the first cloneable request, announce readiness after handler registration,
-and are reused across requests. Each worker executes at most one handler at a
-time, including async handlers. The worker module must be loadable by the host
-runtime: use JavaScript for plain Node, or TypeScript with a supporting runtime
-such as Bun. `runSolverWorker()` is only invoked by that Node worker module;
-importing it in browsers is safe.
+`_getTaskExecutor()` is protected and only available during `.solveAsync()`.
+Keep the task module object stable so related steps and child solvers reuse its
+pool. Do not retain an executor beyond that solve call. Worker modules register
+handlers with `runSolverWorker()`; the worker module must be loadable by the
+host runtime. Browser execution uses the same handlers without loading that
+module. No browser worker adapter is included.
 
-The factory is asynchronous to load native support only after runtime detection.
-Its returned executor has the same interface and lifecycle in both environments.
-Node initialization failures surface as errors rather than silently changing
-execution policy.
+The underlying `SolverExecutor` interface remains available for infrastructure
+and typed solver integration, but its factories are internal to the package.
+A task's input, output, and shared-context types are specified by
+`SolverTaskDefinition<Input, Output, Shared>`. Use namespaced task kinds when
+combining catalogs and `{ shared: undefined }` when no shared context is needed.
 
-Inputs and context are snapshotted at submission, even when queued behind other
-tasks. Ordinary outputs are isolated as well. Both executors use native message
-transport for cloning so shared buffers retain their backing storage on Bun and
-Node. The inline path uses the browser-compatible global `MessageChannel`.
-Shared context can contain buffers, views, and ordinary schema metadata;
-ordinary metadata is copied for each task. Keep large immutable topology arrays
-in shared buffers to avoid copying their bytes. Tasks using ordinary cloneable
-data also work in browsers where shared memory is unavailable.
+## Data isolation and shared memory
 
-Handler exceptions and input/output clone failures reject that request and leave
-the executor usable. Errors preserve `name`, `message`, and optional `stack`;
-custom fields, subclasses, and causes are not transported. Stack text can differ
-between hosts. Unknown task kinds are request errors, including inherited names
-such as `constructor` and `toString`.
+Inputs, outputs, and shared context must be structured-cloneable data. Register
+handlers by kind; do not send callbacks or solver instances to workers. Ordinary
+task input and context are snapshotted synchronously at submission, even when
+queued, and ordinary outputs are isolated. Native message transport preserves
+shared backing storage in both inline and worker execution.
 
-Worker crashes, unexpected exits, invalid replies, or protocol mismatches fail
-the pool. All workers are stopped before active requests reject, and work is not
-retried automatically. `startupTimeoutMs` defaults to 30,000 ms and limits waiting
-for readiness; it does not impose a wall-clock budget on task computation.
+`createSharedSolverBuffer(view)` copies exactly a view's visible bytes into a
+fixed-size `SharedArrayBuffer`, including subarray and DataView offsets. Publish
+shared topology before submitting tasks and keep it immutable until all
+consuming tasks settle. TypeScript `readonly` and `Object.freeze()` do not
+prevent writes to shared bytes. Keep occupancy, heaps, random generators, and
+mutable search state private to each task. Shared output requires exclusive
+ranges and completion before the coordinator reads it.
 
-`dispose()` rejects new submissions immediately, drains accepted requests, then
-terminates any workers. Repeated calls return the same promise. A task that never
-finishes also prevents graceful disposal from finishing. The owner must await
-disposal before releasing shared storage. Inline disposal follows the same
-draining rule.
+`SolverSharedMemory` is an optional named-buffer shape. Task-specific shared
+context may also contain ordinary schema metadata and typed views. Ordinary
+metadata is copied per task. Tasks using only ordinary cloneable data also work
+in browsers where shared memory is unavailable. Shared buffers never belong in
+transfer lists; there is no transfer-list API that detaches ordinary inputs.
 
-## Shared memory ownership
+Handler exceptions and clone failures reject their request without poisoning
+the pool. Errors preserve `name`, `message`, and optional `stack`; subclasses,
+custom fields, and causes are not transported. Worker crashes, unexpected exits,
+invalid replies, or protocol mismatches fail the pool without retrying work.
+Workers stop before pending requests expose infrastructure failure. A readiness
+deadline is infrastructure protection, not a task computation budget.
 
-`createSharedSolverBuffer(view)` copies exactly the view's visible bytes into a
-new fixed-size `SharedArrayBuffer`, including subarray and DataView offsets.
-Reconstruct the typed view inside a handler, for example
-`new Int32Array(context.shared.routeEnds)`.
+## Deterministic adoption
 
-Allocation and initialization happen once. Worker messaging shares a shared
-buffer's backing storage rather than copying its bytes. `SolverSharedMemory`
-provides an optional named-buffer shape for contexts with several allocations.
-Task-specific context types can also include schema metadata and typed views.
+This infrastructure does not automatically parallelize existing algorithms.
+Hypergraph, high-density, and repair solvers must adopt independent tasks
+incrementally and prove exact output parity against their synchronous paths.
 
-Publish shared topology before submitting tasks and keep it immutable until all
-consuming tasks settle. TypeScript `readonly` and `Object.freeze()` do not prevent
-writes to shared bytes. Keep occupancy, heaps, random generators, and mutable
-search state private to each task. A future task that writes shared output must
-own an exclusive range and publish completion before the coordinator reads it.
+Tasks may finish in any order. Commit results and select algorithmic errors in
+original logical order, preserving first-success rules, floating-point reduction
+order, tie behavior, cache visibility, seeds, and iteration budgets. Promise
+rejection arrival order must not select a routing result. Waiting is not solver
+work, and worker count or identity must not affect algorithm choices.
 
-Shared buffers do not belong in transfer lists. This contract has no transfer
-list API: detaching ordinary buffers can change serial behavior. Inline and
-worker implementations must provide the same isolation for ordinary input,
-context, and output data while preserving intentionally shared backing storage.
-Verify these semantics on the supported runtime; adapters must not assume that
-every cloning API preserves shared buffers correctly.
-
-## Deterministic consumption
-
-Tasks may finish in any order. Solvers must consume results and algorithmic
-failures in original logical order, preserving first-success rules, numerical
-reductions, and tie behavior. Promise rejection arrival order must not select a
-routing result. Infrastructure failures must surface as failures.
-
-Seeds, candidate sets, cache visibility, and iteration limits belong to solver
-inputs and policy. They must not depend on worker count or identity. Task outputs
-must include any logical work or prefix state the coordinator needs to reproduce
-existing iteration limits. Waiting for a request is not solver work. Every future
-integration must verify exact serial parity, including warm caches and budget
-boundaries; the interface alone cannot establish that guarantee.
-
-The host retains one executor across stages and child solvers. Only its owner
-calls `dispose()`, after solvers stop. Disposal stops new submissions, settles
-outstanding requests, and releases workers. Keep executor resources and shared
-storage out of algorithm cache keys and reproduction/diagnostic JSON.
+Preserve logical solver steps when batching work and test warm caches and budget
+boundaries. Keep runtime resources out of constructor reproduction data,
+algorithm cache keys, and diagnostic JSON. Thread settings affect execution;
+they are not algorithm inputs.
