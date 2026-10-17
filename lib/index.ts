@@ -8,3 +8,14 @@ export type {
   SolverTaskDefinition,
 } from "./execution/SolverExecutor"
 export { createSharedSolverBuffer } from "./execution/createSharedSolverBuffer"
+export { SolverRuntime } from "./runtime/SolverRuntime"
+export type {
+  RuntimeSolver,
+  SolverConstructor,
+  SolverMessageEndpoint,
+  SolverRuntimeCatalog,
+  SolverRuntimeExecutor,
+  SolverRuntimeOptions,
+  SolverWorker,
+  ThreadedSolverRuntimeOptions,
+} from "./runtime/types"
