@@ -126,12 +126,7 @@ export abstract class BasePipelineSolver<TInput> extends BaseSolver {
 
     for (const stage of this.pipelineDef) {
       const timeSpent = this.timeSpentOnStage[stage.solverName] || 0
-      const firstIteration = this.firstIterationOfStage[stage.solverName] || 0
-      const currentIteration = this.iterations
-      const iterations =
-        stage.solverName === this.getCurrentStageName()
-          ? currentIteration - firstIteration
-          : 0
+      const iterations = this.getSolver(stage.solverName)?.iterations ?? 0
       const completed =
         this.currentPipelineStageIndex >
         this.pipelineDef.findIndex((s) => s.solverName === stage.solverName)
