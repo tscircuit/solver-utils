@@ -206,6 +206,7 @@ export abstract class BasePipelineSolver<TInput> extends BaseSolver {
       lines: visualizations.flatMap((v) => v.lines || []),
       circles: visualizations.flatMap((v) => v.circles || []),
       texts: visualizations.flatMap((v) => v.texts || []),
+      arrows: visualizations.flatMap((v) => v.arrows || []),
     }
   }
 
