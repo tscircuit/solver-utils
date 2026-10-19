@@ -81,7 +81,9 @@ export const GenericSolverDebugger = ({
       (visualization.rects?.length || 0) === 0 &&
       (visualization.lines?.length || 0) === 0 &&
       (visualization.points?.length || 0) === 0 &&
-      (visualization.circles?.length || 0) === 0,
+      (visualization.circles?.length || 0) === 0 &&
+      (visualization.texts?.length || 0) === 0 &&
+      (visualization.arrows?.length || 0) === 0,
     [visualization],
   )
 
