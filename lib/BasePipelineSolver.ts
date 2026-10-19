@@ -184,16 +184,16 @@ export abstract class BasePipelineSolver<TInput> extends BaseSolver {
         .filter(Boolean) as GraphicsObject[],
     )
 
-    if (visualizations.length === 0) {
-      return { points: [], rects: [], lines: [], circles: [], texts: [] }
-    }
-
     if (this.solved && finalVisualization) {
       setStepOfAllObjects(
         finalVisualization,
         visualizations.length + stageStepOffset + 1,
       )
       visualizations.push(finalVisualization)
+    }
+
+    if (visualizations.length === 0) {
+      return { points: [], rects: [], lines: [], circles: [], texts: [] }
     }
 
     if (visualizations.length === 1) {
