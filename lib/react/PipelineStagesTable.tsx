@@ -61,6 +61,9 @@ const getStageStatus = (
   }
 
   if (stepIndex === currentIndex) {
+    if (solver.failed) {
+      return "Failed"
+    }
     if (solver.activeSubSolver) {
       if (solver.activeSubSolver.failed) {
         return "Failed"
