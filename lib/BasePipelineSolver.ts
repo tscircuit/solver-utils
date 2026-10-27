@@ -225,6 +225,7 @@ export abstract class BasePipelineSolver<TInput> extends BaseSolver {
    * Get the output from a specific pipeline stage
    */
   getStageOutput<T = any>(stageOutput: string): T | undefined {
+    if (!this.hasStageOutput(stageOutput)) return undefined
     return this.pipelineOutputs[stageOutput]
   }
 
@@ -239,7 +240,7 @@ export abstract class BasePipelineSolver<TInput> extends BaseSolver {
    * Check if a step has completed and produced output
    */
   hasStageOutput(stageName: string): boolean {
-    return stageName in this.pipelineOutputs
+    return Object.hasOwn(this.pipelineOutputs, stageName)
   }
 
   /**
