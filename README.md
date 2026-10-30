@@ -462,7 +462,7 @@ animation ticks. `getDownload` supplies the visualization JSON download; the
 solver's 2D `visualize()` is not evaluated in this mode.
 
 ```tsx
-<GenericSolverDebugger
+;<GenericSolverDebugger
   solver={solver}
   customRenderer={{
     name: "3D",
