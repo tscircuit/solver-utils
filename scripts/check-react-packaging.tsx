@@ -1,7 +1,13 @@
 import React from "react"
 import { renderToStaticMarkup } from "react-dom/server"
-import { BaseSolver } from "../dist/index.js"
-import { GenericSolverDebugger } from "../dist/react/index.js"
+const { BaseSolver }: typeof import("../lib/BaseSolver") = await import(
+  new URL("../dist/index.js", import.meta.url).href
+)
+const {
+  GenericSolverDebugger,
+}: typeof import("../lib/react/GenericSolverDebugger") = await import(
+  new URL("../dist/react/index.js", import.meta.url).href
+)
 
 const solver = new BaseSolver()
 const markup = renderToStaticMarkup(
