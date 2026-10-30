@@ -15,6 +15,7 @@ export interface GenericSolverToolbarProps {
   onDownloadVisualization: () => void
   onSolverStarted?: (solver: BaseSolver) => void
   onSolverCompleted?: (solver: BaseSolver) => void
+  customRendererName?: string
 }
 
 export const GenericSolverToolbar = ({
@@ -27,6 +28,7 @@ export const GenericSolverToolbar = ({
   onDownloadVisualization,
   onSolverStarted,
   onSolverCompleted,
+  customRendererName,
 }: GenericSolverToolbarProps) => {
   const [isAnimating, setIsAnimating] = useReducer((x) => !x, false)
   const animationRef = useRef<NodeJS.Timeout | undefined>(undefined)
@@ -202,40 +204,48 @@ export const GenericSolverToolbar = ({
       <div className="flex items-center gap-3">
         <div className="flex items-center gap-2" ref={menuContainerRef}>
           <div className="flex h-9 items-center space-x-1 rounded-md border border-slate-200 bg-white p-1 shadow-sm">
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() =>
-                  setOpenMenu(openMenu === "renderer" ? null : "renderer")
-                }
-                className="flex select-none items-center rounded-sm px-3 py-1 text-sm font-medium outline-none focus:bg-slate-100 data-[state=open]:bg-slate-100"
-                data-state={openMenu === "renderer" ? "open" : "closed"}
-              >
-                Renderer
-              </button>
-              {openMenu === "renderer" && (
-                <div className="absolute left-0 z-50 mt-1 min-w-[10rem] rounded-md border border-slate-200 bg-white p-1 text-slate-950 shadow-md">
-                  {(["vector", "canvas"] as RendererOption[]).map((option) => (
-                    <button
-                      type="button"
-                      key={option}
-                      onClick={() => {
-                        onRendererChange(option)
-                        setOpenMenu(null)
-                      }}
-                      className="flex w-full items-center rounded-sm px-2 py-1.5 text-sm hover:bg-slate-100"
-                    >
-                      {option === "vector" ? "Vector" : "Canvas"}
-                      {renderer === option && (
-                        <span className="ml-auto text-xs text-slate-500">
-                          ✓
-                        </span>
-                      )}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
+            {customRendererName ? (
+              <span className="px-3 py-1 text-sm font-medium">
+                {customRendererName}
+              </span>
+            ) : (
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setOpenMenu(openMenu === "renderer" ? null : "renderer")
+                  }
+                  className="flex select-none items-center rounded-sm px-3 py-1 text-sm font-medium outline-none focus:bg-slate-100 data-[state=open]:bg-slate-100"
+                  data-state={openMenu === "renderer" ? "open" : "closed"}
+                >
+                  Renderer
+                </button>
+                {openMenu === "renderer" && (
+                  <div className="absolute left-0 z-50 mt-1 min-w-[10rem] rounded-md border border-slate-200 bg-white p-1 text-slate-950 shadow-md">
+                    {(["vector", "canvas"] as RendererOption[]).map(
+                      (option) => (
+                        <button
+                          type="button"
+                          key={option}
+                          onClick={() => {
+                            onRendererChange(option)
+                            setOpenMenu(null)
+                          }}
+                          className="flex w-full items-center rounded-sm px-2 py-1.5 text-sm hover:bg-slate-100"
+                        >
+                          {option === "vector" ? "Vector" : "Canvas"}
+                          {renderer === option && (
+                            <span className="ml-auto text-xs text-slate-500">
+                              ✓
+                            </span>
+                          )}
+                        </button>
+                      ),
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
             <div className="relative">
               <button
                 type="button"
