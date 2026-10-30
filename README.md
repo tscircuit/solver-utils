@@ -94,10 +94,7 @@ console.log({
 ### 2) Use a pipeline solver
 
 ```ts
-import {
-  BasePipelineSolver,
-  definePipelineStep,
-} from "@tscircuit/solver-utils"
+import { BasePipelineSolver, definePipelineStep } from "@tscircuit/solver-utils"
 import { BaseSolver } from "@tscircuit/solver-utils"
 
 type Input = { initial: number; target: number }
@@ -154,7 +151,10 @@ class ExamplePipeline extends BasePipelineSolver<Input> {
 
   pipelineDef = [
     definePipelineStep("addOneSolver", AddOneSolver, (instance) => [
-      { start: instance.inputProblem.initial, target: instance.inputProblem.target },
+      {
+        start: instance.inputProblem.initial,
+        target: instance.inputProblem.target,
+      },
     ]),
     definePipelineStep("doubleSolver", DoubleSolver, (instance) => [
       {
@@ -257,7 +257,9 @@ class MySolver extends BaseSolver {
   }
 
   override getOutput() {
-    return { /* final result */ }
+    return {
+      /* final result */
+    }
   }
 }
 ```

@@ -8,6 +8,9 @@ export type AnySolverCatalog = Record<string, { input: any; output: any }>
 export interface SolverRuntimeExecutor<
   Tasks extends SolverRuntimeCatalog<Tasks> = AnySolverCatalog,
 > {
+  /** Configured execution capacity; optional for custom executors. Inline runtimes report 1. */
+  readonly workerCount?: number
+
   executeAsync<Solver extends SolverConstructor<any, any>>(
     Solver: Solver,
     input: ConstructorParameters<Solver>[0],

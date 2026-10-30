@@ -69,6 +69,11 @@ export class SolverRuntime<
     this.options = options
   }
 
+  /** Configured capacity, not the number of currently idle or started workers. */
+  get workerCount(): number {
+    return this.options.createWorker ? (this.options.workerCount ?? 1) : 1
+  }
+
   static registerSolver<Input, Output>(
     Solver: SolverConstructor<Input, Output>,
   ): void {
