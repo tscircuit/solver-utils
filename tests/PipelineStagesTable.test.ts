@@ -129,4 +129,42 @@ describe("getDisplayedStages", () => {
       getDisplayedStages(new NestedSolver(failedSubSolver))[0]?.status,
     ).toBe("Failed")
   })
+
+  test("marks a pipeline stage as Failed after BasePipelineSolver clears activeSubSolver on failure", () => {
+    class ExhaustedStageSolver extends BaseSolver {
+      constructor() {
+        super()
+        this.MAX_ITERATIONS = 2
+      }
+      override _step() {
+        this.progress = 0.5
+      }
+    }
+
+    class FailingPipeline extends BasePipelineSolver<any> {
+      pipelineDef = [
+        {
+          solverName: "firstStage",
+          solverClass: ExhaustedStageSolver,
+          getConstructorParams: () => [],
+        },
+        {
+          solverName: "secondStage",
+          solverClass: SecondStageSolver,
+          getConstructorParams: () => [],
+        },
+      ]
+    }
+
+    const pipeline = new FailingPipeline({})
+    pipeline.solve()
+    expect(pipeline.failed).toBe(true)
+    expect(pipeline.activeSubSolver).toBeNull()
+
+    const stages = getDisplayedStages(pipeline)
+    expect(stages[0]?.status).toBe("Failed")
+    expect(stages[0]?.iterations).toBe(2)
+    expect(stages[0]?.progress).toBe(0.5)
+    expect(stages[1]?.status).toBe("Not Started")
+  })
 })

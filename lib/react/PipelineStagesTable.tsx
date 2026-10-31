@@ -61,10 +61,18 @@ const getStageStatus = (
   }
 
   if (stepIndex === currentIndex) {
+    const stageName = solver.pipelineDef[stepIndex]?.solverName
+    const stageSolver = stageName
+      ? ((solver as any)[stageName] as Partial<BaseSolver> | undefined)
+      : undefined
+    if (
+      solver.failed ||
+      solver.activeSubSolver?.failed ||
+      stageSolver?.failed
+    ) {
+      return "Failed"
+    }
     if (solver.activeSubSolver) {
-      if (solver.activeSubSolver.failed) {
-        return "Failed"
-      }
       return "In Progress"
     }
     return "Not Started"
@@ -100,8 +108,15 @@ const getPipelineStageInfo = (
     } else if (firstIteration !== null) {
       iterations = currentIteration - firstIteration
     }
-  } else if (status === "In Progress" && firstIteration !== null) {
-    iterations = currentIteration - firstIteration
+  } else if (
+    (status === "In Progress" || status === "Failed") &&
+    firstIteration !== null
+  ) {
+    iterations =
+      typeof solverInstance?.iterations === "number" &&
+      solverInstance.iterations > 0
+        ? solverInstance.iterations
+        : currentIteration - firstIteration
   }
 
   const timeSpent = solver.timeSpentOnStage?.[stageName] ?? 0
@@ -109,7 +124,10 @@ const getPipelineStageInfo = (
   let progress = 0
   if (status === "Completed") {
     progress = 1
-  } else if (status === "In Progress" && solverInstance) {
+  } else if (
+    (status === "In Progress" || status === "Failed") &&
+    solverInstance
+  ) {
     progress = solverInstance.progress ?? 0
   }
 
