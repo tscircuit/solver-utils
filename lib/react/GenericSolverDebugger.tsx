@@ -38,6 +38,13 @@ export interface GenericSolverDebuggerProps {
   animationSpeed?: number
   onSolverStarted?: (solver: BaseSolver) => void
   onSolverCompleted?: (solver: BaseSolver) => void
+  /** Optional renderer for another graphics format (for example 3D meshes).
+   * Re-evaluated after solver steps; keeps the standard controls and pipeline UI. */
+  customRenderer?: {
+    name: string
+    render: (solver: BaseSolver) => React.ReactNode
+    getDownload: (solver: BaseSolver) => unknown
+  }
 }
 
 export const GenericSolverDebugger = ({
@@ -46,6 +53,7 @@ export const GenericSolverDebugger = ({
   animationSpeed = 25,
   onSolverStarted,
   onSolverCompleted,
+  customRenderer,
 }: GenericSolverDebuggerProps) => {
   const [renderCount, incRenderCount] = useReducer((x) => x + 1, 0)
   const [solver] = useState<BaseSolver>(() => {
@@ -66,6 +74,7 @@ export const GenericSolverDebugger = ({
     useState(animationSpeed)
 
   const visualization = useMemo(() => {
+    if (customRenderer) return {}
     try {
       return (
         solver.visualize() || { points: [], lines: [], rects: [], circles: [] }
@@ -74,7 +83,7 @@ export const GenericSolverDebugger = ({
       console.error("Visualization error:", error)
       return { points: [], lines: [], rects: [], circles: [] }
     }
-  }, [solver, renderCount])
+  }, [solver, renderCount, customRenderer])
 
   const graphicsAreEmpty = useMemo(
     () =>
@@ -121,7 +130,11 @@ export const GenericSolverDebugger = ({
   }
 
   const handleDownloadVisualization = () => {
-    const visualizationJson = JSON.stringify(visualization, null, 2)
+    const visualizationJson = JSON.stringify(
+      customRenderer ? customRenderer.getDownload(solver) : visualization,
+      null,
+      2,
+    )
     const blob = new Blob([visualizationJson], {
       type: "application/json",
     })
@@ -154,8 +167,11 @@ export const GenericSolverDebugger = ({
         onDownloadVisualization={handleDownloadVisualization}
         onSolverStarted={onSolverStarted}
         onSolverCompleted={onSolverCompleted}
+        customRendererName={customRenderer?.name}
       />
-      {graphicsAreEmpty ? (
+      {customRenderer ? (
+        customRenderer.render(solver)
+      ) : graphicsAreEmpty ? (
         <div className="p-4 text-gray-500">No Graphics Yet</div>
       ) : (
         <ErrorBoundary

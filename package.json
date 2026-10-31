@@ -28,6 +28,7 @@
     "@react-hook/resize-observer": "^2.0.2",
     "@types/bun": "latest",
     "@types/react": "^19.1.13",
+    "@types/react-dom": "^19",
     "graphics-debug": "^0.0.76",
     "react": "^19.1.1",
     "react-cosmos": "^7.0.0",
@@ -38,6 +39,12 @@
   },
   "peerDependencies": {
     "typescript": "^5",
-    "graphics-debug": "*"
+    "graphics-debug": "*",
+    "react": "*"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    }
   }
 }

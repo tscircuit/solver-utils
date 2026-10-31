@@ -37,3 +37,6 @@ jobs:
 
       - name: Check packed Bun, Node, and browser consumers
         run: bun scripts/check-runtime-packaging.ts
+
+      - name: Check React entrypoint uses consumer React
+        run: bun scripts/check-react-packaging.tsx

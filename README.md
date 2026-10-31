@@ -453,3 +453,25 @@ bun run format
 - If solver never terminates, confirm `_step()` eventually sets `solved` or `failed`.
 - If pipeline stage lookup fails, confirm `solverName` matches property access in `getSolver("name")`.
 - If React debugger renders nothing, make sure `visualize()` returns at least one non-empty primitive array.
+
+### Custom visualization formats
+
+Keep the standard solver controls while rendering another format, such as a
+`graphics-debug-3d` scene. `customRenderer.render` is called after steps and
+animation ticks. `getDownload` supplies the visualization JSON download; the
+solver's 2D `visualize()` is not evaluated in this mode.
+
+```tsx
+;<GenericSolverDebugger
+  solver={solver}
+  customRenderer={{
+    name: "3D",
+    render: () => <InteractiveGraphics3d graphics={solver.visualize3d()} />,
+    getDownload: () => solver.visualize3d(),
+  }}
+/>
+```
+
+The custom renderer owns its camera and graphics UI. The default vector/canvas
+selector is replaced by its name. Solvers without `customRenderer` keep the
+existing 2D rendering and download behavior.
