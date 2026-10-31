@@ -301,6 +301,10 @@ test("BasePipelineSolver phase statistics", () => {
   expect(stats.stepOneSolver?.timeSpent).toBeGreaterThan(0)
   expect(stats.stepTwoSolver?.timeSpent).toBeGreaterThan(0)
   expect(stats.stepThreeSolver?.timeSpent).toBeGreaterThan(0)
+
+  expect(stats.stepOneSolver?.iterations).toBe(10)
+  expect(stats.stepTwoSolver?.iterations).toBe(5)
+  expect(stats.stepThreeSolver?.iterations).toBeGreaterThan(0)
 })
 
 test("BasePipelineSolver visualization", () => {

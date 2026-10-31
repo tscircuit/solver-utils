@@ -124,17 +124,44 @@ export abstract class BasePipelineSolver<TInput> extends BaseSolver {
   > {
     const stats: Record<string, any> = {}
 
-    for (const stage of this.pipelineDef) {
+    for (const [stageIndex, stage] of this.pipelineDef.entries()) {
       const timeSpent = this.timeSpentOnStage[stage.solverName] || 0
-      const firstIteration = this.firstIterationOfStage[stage.solverName] || 0
+      const firstIteration = this.firstIterationOfStage[stage.solverName]
       const currentIteration = this.iterations
-      const iterations =
-        stage.solverName === this.getCurrentStageName()
-          ? currentIteration - firstIteration
-          : 0
-      const completed =
-        this.currentPipelineStageIndex >
-        this.pipelineDef.findIndex((s) => s.solverName === stage.solverName)
+      const completed = this.currentPipelineStageIndex > stageIndex
+      const solverInstance = (this as any)[stage.solverName] as
+        | Partial<BaseSolver>
+        | undefined
+
+      let iterations = 0
+      if (completed) {
+        const nextStage = this.pipelineDef[stageIndex + 1]
+        const nextStageFirstIteration = nextStage
+          ? this.firstIterationOfStage[nextStage.solverName]
+          : undefined
+        if (
+          typeof solverInstance?.iterations === "number" &&
+          solverInstance.iterations > 0
+        ) {
+          iterations = solverInstance.iterations
+        } else if (
+          nextStageFirstIteration !== undefined &&
+          firstIteration !== undefined
+        ) {
+          iterations = nextStageFirstIteration - firstIteration
+        } else if (firstIteration !== undefined) {
+          iterations = currentIteration - firstIteration
+        }
+      } else if (stageIndex === this.currentPipelineStageIndex) {
+        if (
+          typeof solverInstance?.iterations === "number" &&
+          solverInstance.iterations > 0
+        ) {
+          iterations = solverInstance.iterations
+        } else if (firstIteration !== undefined) {
+          iterations = currentIteration - firstIteration
+        }
+      }
 
       stats[stage.solverName] = {
         timeSpent,
