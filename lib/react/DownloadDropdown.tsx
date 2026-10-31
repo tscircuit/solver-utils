@@ -24,6 +24,65 @@ const deepRemoveUnderscoreProperties = (obj: any): any => {
   return result
 }
 
+export const getPageTsxContent = (solver: BaseSolver): string => {
+  const params = deepRemoveUnderscoreProperties(solver.getConstructorParams())
+  const solverName = solver.getSolverName()
+  const isSchematicTracePipelineSolver =
+    solverName === "SchematicTracePipelineSolver"
+
+  if (isSchematicTracePipelineSolver) {
+    return `import { PipelineDebugger } from "site/components/PipelineDebugger"
+import type { InputProblem } from "lib/types/InputProblem"
+
+const inputProblem: InputProblem = ${JSON.stringify(params, null, 2)}
+
+export default () => <PipelineDebugger inputProblem={inputProblem} />
+`
+  }
+
+  const constructorArgs = Array.isArray(params)
+    ? "...(inputProblem as any)"
+    : "inputProblem as any"
+  return `import { useMemo } from "react"
+import { GenericSolverDebugger } from "../components/GenericSolverDebugger"
+import { ${solverName} } from "lib/solvers/${solverName}/${solverName}"
+
+export const inputProblem = ${JSON.stringify(params, null, 2)}
+
+export default () => {
+  const solver = useMemo(() => {
+    return new ${solverName}(${constructorArgs})
+  }, [])
+  return <GenericSolverDebugger solver={solver} />
+}
+`
+}
+
+export const getTestTsContent = (solver: BaseSolver): string => {
+  const params = deepRemoveUnderscoreProperties(solver.getConstructorParams())
+  const solverName = solver.getSolverName()
+
+  const constructorArgs = Array.isArray(params)
+    ? "...(input as any)"
+    : "input as any"
+
+  return `import { ${solverName} } from "lib/solvers/${solverName}/${solverName}"
+import { test, expect } from "bun:test"
+
+test("${solverName} should solve problem correctly", () => {
+  const input = ${JSON.stringify(params, null, 2)}
+  
+  const solver = new ${solverName}(${constructorArgs})
+  solver.solve()
+
+  expect(solver).toMatchSolverSnapshot(import.meta.path)
+  
+  // Add more specific assertions based on expected output
+  // expect(solver.netLabelPlacementSolver!.netLabelPlacements).toMatchInlineSnapshot()
+})
+`
+}
+
 export const DownloadDropdown = ({
   solver,
   className = "",
@@ -76,38 +135,8 @@ export const DownloadDropdown = ({
 
   const downloadPageTsx = () => {
     try {
-      const params = deepRemoveUnderscoreProperties(
-        solver.getConstructorParams(),
-      )
       const solverName = solver.getSolverName()
-      const isSchematicTracePipelineSolver =
-        solverName === "SchematicTracePipelineSolver"
-
-      let content: string
-
-      if (isSchematicTracePipelineSolver) {
-        content = `import { PipelineDebugger } from "site/components/PipelineDebugger"
-import type { InputProblem } from "lib/types/InputProblem"
-
-const inputProblem: InputProblem = ${JSON.stringify(params, null, 2)}
-
-export default () => <PipelineDebugger inputProblem={inputProblem} />
-`
-      } else {
-        content = `import { useMemo } from "react"
-import { GenericSolverDebugger } from "../components/GenericSolverDebugger"
-import { ${solverName} } from "lib/solvers/${solverName}/${solverName}"
-
-export const inputProblem = ${JSON.stringify(params, null, 2)}
-
-export default () => {
-  const solver = useMemo(() => {
-    return new ${solverName}(inputProblem as any)
-  }, [])
-  return <GenericSolverDebugger solver={solver} />
-}
-`
-      }
+      const content = getPageTsxContent(solver)
 
       const blob = new Blob([content], { type: "text/plain" })
       const url = URL.createObjectURL(blob)
@@ -126,26 +155,8 @@ export default () => {
 
   const downloadTestTs = () => {
     try {
-      const params = deepRemoveUnderscoreProperties(
-        solver.getConstructorParams(),
-      )
       const solverName = solver.getSolverName()
-
-      const content = `import { ${solverName} } from "lib/solvers/${solverName}/${solverName}"
-import { test, expect } from "bun:test"
-
-test("${solverName} should solve problem correctly", () => {
-  const input = ${JSON.stringify(params, null, 2)}
-  
-  const solver = new ${solverName}(input as any)
-  solver.solve()
-
-  expect(solver).toMatchSolverSnapshot(import.meta.path)
-  
-  // Add more specific assertions based on expected output
-  // expect(solver.netLabelPlacementSolver!.netLabelPlacements).toMatchInlineSnapshot()
-})
-`
+      const content = getTestTsContent(solver)
 
       const blob = new Blob([content], { type: "text/plain" })
       const url = URL.createObjectURL(blob)
