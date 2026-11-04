@@ -57,6 +57,11 @@ export const GenericSolverToolbar = ({
     const stepsPerTick = animationSpeed < 1 ? Math.round(1 / animationSpeed) : 1
 
     animationRef.current = setInterval(() => {
+      for (let i = 0; i < stepsPerTick; i++) {
+        if (solver.solved || solver.failed) break
+        solver.step()
+      }
+
       if (solver.solved || solver.failed) {
         if (animationRef.current) {
           clearInterval(animationRef.current)
@@ -68,11 +73,6 @@ export const GenericSolverToolbar = ({
           onSolverCompleted(solver)
         }
         return
-      }
-
-      for (let i = 0; i < stepsPerTick; i++) {
-        if (solver.solved || solver.failed) break
-        solver.step()
       }
 
       triggerRender()
