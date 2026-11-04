@@ -1,5 +1,11 @@
 export * from "./BaseSolver"
 export * from "./BasePipelineSolver"
+export { ParallelSolver, type ParallelSolverOptions } from "./ParallelSolver"
+export { SolverRuntime, SingleThreadSolverRuntime } from "./SolverRuntime"
+export type {
+  ParallelTaskBatch,
+  ParallelTaskOutcome,
+} from "./parallel/ParallelTaskBatch"
 export type {
   SolverExecutor,
   SolverSharedMemory,
