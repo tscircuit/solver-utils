@@ -1,5 +1,6 @@
 import { cloneSolverData } from "./cloneSolverData"
 import { getRegisteredSolverName } from "./getRegisteredSolverName"
+import { normalizeSolverError } from "./normalizeSolverError"
 import {
   deserializeSolverError,
   serializeSolverError,
@@ -193,17 +194,11 @@ export class SolverRuntime<
               this.finish(job, undefined, output)
             }
           } catch (error) {
-            this.finish(
-              job,
-              error instanceof Error ? error : new Error(String(error)),
-            )
+            this.finish(job, normalizeSolverError(error))
           }
         },
         (error): void => {
-          this.finish(
-            job,
-            error instanceof Error ? error : new Error(String(error)),
-          )
+          this.finish(job, normalizeSolverError(error))
         },
       )
     })
@@ -241,7 +236,7 @@ export class SolverRuntime<
         ),
       )
     } catch (error) {
-      const failure = error instanceof Error ? error : new Error(String(error))
+      const failure = normalizeSolverError(error)
       await this.terminateWorkers()
       if (this.stopped) throw this.stopped
       if (
@@ -358,10 +353,7 @@ export class SolverRuntime<
         } satisfies SolverRequest)
       } catch (error) {
         slot.job = null
-        this.finish(
-          job,
-          error instanceof Error ? error : new Error(String(error)),
-        )
+        this.finish(job, normalizeSolverError(error))
         this.dispatch()
       }
     }
