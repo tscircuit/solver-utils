@@ -1,5 +1,6 @@
-import { useState, useRef, useEffect } from "react"
+import { useEffect, useRef, useState } from "react"
 import type { BaseSolver } from "../BaseSolver"
+import { formatNewSolverExpression } from "../format-solver-constructor-call"
 
 interface DownloadDropdownProps {
   solver: BaseSolver
@@ -102,7 +103,8 @@ export const inputProblem = ${JSON.stringify(params, null, 2)}
 
 export default () => {
   const solver = useMemo(() => {
-    return new ${solverName}(inputProblem as any)
+    const input = inputProblem
+    return ${formatNewSolverExpression(solverName)}
   }, [])
   return <GenericSolverDebugger solver={solver} />
 }
@@ -137,7 +139,7 @@ import { test, expect } from "bun:test"
 test("${solverName} should solve problem correctly", () => {
   const input = ${JSON.stringify(params, null, 2)}
   
-  const solver = new ${solverName}(input as any)
+  const solver = ${formatNewSolverExpression(solverName)}
   solver.solve()
 
   expect(solver).toMatchSolverSnapshot(import.meta.path)
