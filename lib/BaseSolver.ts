@@ -53,14 +53,20 @@ export class BaseSolver {
       throw e
     }
     if (!this.solved && this.iterations >= this.MAX_ITERATIONS) {
-      this.tryFinalAcceptance()
+      try {
+        this.tryFinalAcceptance()
+      } catch (e) {
+        this.error = `${this.getSolverName()} error: ${e}`
+        this.failed = true
+        throw e
+      }
     }
     if (!this.solved && this.iterations >= this.MAX_ITERATIONS) {
       this.error = `${this.getSolverName()} ran out of iterations`
       this.failed = true
     }
     if ("computeProgress" in this) {
-      // @ts-ignore
+      // @ts-expect-error
       this.progress = this.computeProgress() as number
     }
   }

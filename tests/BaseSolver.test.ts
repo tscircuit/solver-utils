@@ -1,4 +1,4 @@
-import { test, expect } from "bun:test"
+import { expect, test } from "bun:test"
 import { BaseSolver } from "../lib/BaseSolver"
 
 class TestSolver extends BaseSolver {
@@ -120,4 +120,47 @@ test("BaseSolver error handling", () => {
   expect(() => solver.solve()).toThrow("Test error")
   expect(solver.failed).toBe(true)
   expect(solver.error).toContain("ErrorSolver error: Error: Test error")
+})
+
+test("tryFinalAcceptance exceptions fail the solver and are not retried", () => {
+  class AcceptanceErrorSolver extends BaseSolver {
+    override MAX_ITERATIONS = 1
+    calls = 0
+    failure = new Error("final acceptance failed")
+
+    override tryFinalAcceptance() {
+      this.calls++
+      throw this.failure
+    }
+  }
+
+  const solver = new AcceptanceErrorSolver()
+  expect(() => solver.step()).toThrow(solver.failure)
+  expect(solver.failed).toBe(true)
+  expect(solver.error).toContain(
+    "AcceptanceErrorSolver error: Error: final acceptance failed",
+  )
+  expect(solver.iterations).toBe(1)
+  expect(solver.calls).toBe(1)
+
+  expect(() => solver.step()).not.toThrow()
+  expect(solver.calls).toBe(1)
+  expect(solver.iterations).toBe(1)
+})
+
+test("tryFinalAcceptance can still accept a passable solution", () => {
+  class AcceptingSolver extends BaseSolver {
+    override MAX_ITERATIONS = 1
+
+    override tryFinalAcceptance() {
+      this.solved = true
+    }
+  }
+
+  const solver = new AcceptingSolver()
+  solver.solve()
+  expect(solver.solved).toBe(true)
+  expect(solver.failed).toBe(false)
+  expect(solver.error).toBeNull()
+  expect(solver.iterations).toBe(1)
 })
