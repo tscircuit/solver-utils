@@ -121,3 +121,54 @@ test("BaseSolver error handling", () => {
   expect(solver.failed).toBe(true)
   expect(solver.error).toContain("ErrorSolver error: Error: Test error")
 })
+
+test("BaseSolver records failure when tryFinalAcceptance throws", () => {
+  class AcceptanceErrorSolver extends BaseSolver {
+    override MAX_ITERATIONS = 1
+    calls = 0
+    failure = new Error("final acceptance failed")
+
+    override tryFinalAcceptance() {
+      this.calls++
+      throw this.failure
+    }
+  }
+
+  const stepSolver = new AcceptanceErrorSolver()
+  expect(() => stepSolver.step()).toThrow(stepSolver.failure)
+  expect(stepSolver.failed).toBe(true)
+  expect(stepSolver.error).toBe(
+    "AcceptanceErrorSolver error: Error: final acceptance failed",
+  )
+  expect(stepSolver.iterations).toBe(1)
+
+  stepSolver.step()
+  expect(stepSolver.calls).toBe(1)
+  expect(stepSolver.iterations).toBe(1)
+
+  const solveSolver = new AcceptanceErrorSolver()
+  expect(() => solveSolver.solve()).toThrow(solveSolver.failure)
+  expect(solveSolver.failed).toBe(true)
+  expect(solveSolver.error).toBe(
+    "AcceptanceErrorSolver error: Error: final acceptance failed",
+  )
+  expect(solveSolver.calls).toBe(1)
+  expect(solveSolver.iterations).toBe(1)
+})
+
+test("BaseSolver tryFinalAcceptance can mark solver as solved at max iterations", () => {
+  class AcceptanceSuccessSolver extends BaseSolver {
+    override MAX_ITERATIONS = 2
+
+    override tryFinalAcceptance() {
+      this.solved = true
+    }
+  }
+
+  const solver = new AcceptanceSuccessSolver()
+  solver.solve()
+  expect(solver.solved).toBe(true)
+  expect(solver.failed).toBe(false)
+  expect(solver.error).toBeNull()
+  expect(solver.iterations).toBe(2)
+})

@@ -47,15 +47,23 @@ export class BaseSolver {
     this.iterations++
     try {
       this._step()
+      if (
+        !this.solved &&
+        !this.failed &&
+        this.iterations >= this.MAX_ITERATIONS
+      ) {
+        this.tryFinalAcceptance()
+      }
     } catch (e) {
       this.error = `${this.getSolverName()} error: ${e}`
       this.failed = true
       throw e
     }
-    if (!this.solved && this.iterations >= this.MAX_ITERATIONS) {
-      this.tryFinalAcceptance()
-    }
-    if (!this.solved && this.iterations >= this.MAX_ITERATIONS) {
+    if (
+      !this.solved &&
+      !this.failed &&
+      this.iterations >= this.MAX_ITERATIONS
+    ) {
       this.error = `${this.getSolverName()} ran out of iterations`
       this.failed = true
     }
