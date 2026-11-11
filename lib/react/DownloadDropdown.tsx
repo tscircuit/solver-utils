@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react"
+import { useEffect, useRef, useState } from "react"
 import type { BaseSolver } from "../BaseSolver"
 
 interface DownloadDropdownProps {
@@ -22,6 +22,75 @@ const deepRemoveUnderscoreProperties = (obj: any): any => {
     }
   }
   return result
+}
+
+export const createPageTsxContent = (solver: BaseSolver): string => {
+  const params = deepRemoveUnderscoreProperties(solver.getConstructorParams())
+  const solverName = solver.getSolverName()
+  const isSchematicTracePipelineSolver =
+    solverName === "SchematicTracePipelineSolver"
+
+  if (isSchematicTracePipelineSolver) {
+    return `import { PipelineDebugger } from "site/components/PipelineDebugger"
+import type { InputProblem } from "lib/types/InputProblem"
+
+const inputProblem: InputProblem = ${JSON.stringify(params, null, 2)}
+
+export default () => <PipelineDebugger inputProblem={inputProblem} />
+`
+  }
+
+  const isTupleParams = Array.isArray(params)
+  const serializedParams = JSON.stringify(params, null, 2)
+  const inputDeclaration = isTupleParams
+    ? `export const inputProblem: ConstructorParameters<typeof ${solverName}> = ${serializedParams} as any`
+    : `export const inputProblem = ${serializedParams}`
+  const solverInvocation = isTupleParams
+    ? `new ${solverName}(...inputProblem)`
+    : `new ${solverName}(inputProblem as any)`
+
+  return `import { useMemo } from "react"
+import { GenericSolverDebugger } from "../components/GenericSolverDebugger"
+import { ${solverName} } from "lib/solvers/${solverName}/${solverName}"
+
+${inputDeclaration}
+
+export default () => {
+  const solver = useMemo(() => {
+    return ${solverInvocation}
+  }, [])
+  return <GenericSolverDebugger solver={solver} />
+}
+`
+}
+
+export const createTestTsContent = (solver: BaseSolver): string => {
+  const params = deepRemoveUnderscoreProperties(solver.getConstructorParams())
+  const solverName = solver.getSolverName()
+  const isTupleParams = Array.isArray(params)
+  const serializedParams = JSON.stringify(params, null, 2)
+  const inputDeclaration = isTupleParams
+    ? `const input: ConstructorParameters<typeof ${solverName}> = ${serializedParams} as any`
+    : `const input = ${serializedParams}`
+  const solverInvocation = isTupleParams
+    ? `new ${solverName}(...input)`
+    : `new ${solverName}(input as any)`
+
+  return `import { ${solverName} } from "lib/solvers/${solverName}/${solverName}"
+import { test, expect } from "bun:test"
+
+test("${solverName} should solve problem correctly", () => {
+  ${inputDeclaration}
+  
+  const solver = ${solverInvocation}
+  solver.solve()
+
+  expect(solver).toMatchSolverSnapshot(import.meta.path)
+  
+  // Add more specific assertions based on expected output
+  // expect(solver.netLabelPlacementSolver!.netLabelPlacements).toMatchInlineSnapshot()
+})
+`
 }
 
 export const DownloadDropdown = ({
@@ -76,39 +145,8 @@ export const DownloadDropdown = ({
 
   const downloadPageTsx = () => {
     try {
-      const params = deepRemoveUnderscoreProperties(
-        solver.getConstructorParams(),
-      )
+      const content = createPageTsxContent(solver)
       const solverName = solver.getSolverName()
-      const isSchematicTracePipelineSolver =
-        solverName === "SchematicTracePipelineSolver"
-
-      let content: string
-
-      if (isSchematicTracePipelineSolver) {
-        content = `import { PipelineDebugger } from "site/components/PipelineDebugger"
-import type { InputProblem } from "lib/types/InputProblem"
-
-const inputProblem: InputProblem = ${JSON.stringify(params, null, 2)}
-
-export default () => <PipelineDebugger inputProblem={inputProblem} />
-`
-      } else {
-        content = `import { useMemo } from "react"
-import { GenericSolverDebugger } from "../components/GenericSolverDebugger"
-import { ${solverName} } from "lib/solvers/${solverName}/${solverName}"
-
-export const inputProblem = ${JSON.stringify(params, null, 2)}
-
-export default () => {
-  const solver = useMemo(() => {
-    return new ${solverName}(inputProblem as any)
-  }, [])
-  return <GenericSolverDebugger solver={solver} />
-}
-`
-      }
-
       const blob = new Blob([content], { type: "text/plain" })
       const url = URL.createObjectURL(blob)
       const a = document.createElement("a")
@@ -126,27 +164,8 @@ export default () => {
 
   const downloadTestTs = () => {
     try {
-      const params = deepRemoveUnderscoreProperties(
-        solver.getConstructorParams(),
-      )
+      const content = createTestTsContent(solver)
       const solverName = solver.getSolverName()
-
-      const content = `import { ${solverName} } from "lib/solvers/${solverName}/${solverName}"
-import { test, expect } from "bun:test"
-
-test("${solverName} should solve problem correctly", () => {
-  const input = ${JSON.stringify(params, null, 2)}
-  
-  const solver = new ${solverName}(input as any)
-  solver.solve()
-
-  expect(solver).toMatchSolverSnapshot(import.meta.path)
-  
-  // Add more specific assertions based on expected output
-  // expect(solver.netLabelPlacementSolver!.netLabelPlacements).toMatchInlineSnapshot()
-})
-`
-
       const blob = new Blob([content], { type: "text/plain" })
       const url = URL.createObjectURL(blob)
       const a = document.createElement("a")
