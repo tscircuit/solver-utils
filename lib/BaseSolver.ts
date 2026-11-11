@@ -48,8 +48,13 @@ export class BaseSolver {
     try {
       this._step()
     } catch (e) {
-      this.error = `${this.getSolverName()} error: ${e}`
       this.failed = true
+      try {
+        this.error = `${this.getSolverName()} error: ${String(e)}`
+      } catch {
+        this.error =
+          "Solver error: thrown value could not be converted to a string"
+      }
       throw e
     }
     if (!this.solved && this.iterations >= this.MAX_ITERATIONS) {
