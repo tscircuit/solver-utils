@@ -1,27 +1,10 @@
 import { useState, useRef, useEffect } from "react"
 import type { BaseSolver } from "../BaseSolver"
+import { deepRemoveUnderscoreProperties } from "./deep-remove-underscore-properties"
 
 interface DownloadDropdownProps {
   solver: BaseSolver
   className?: string
-}
-
-const deepRemoveUnderscoreProperties = (obj: any): any => {
-  if (obj === null || typeof obj !== "object") {
-    return obj
-  }
-
-  if (Array.isArray(obj)) {
-    return obj.map(deepRemoveUnderscoreProperties)
-  }
-
-  const result: any = {}
-  for (const [key, value] of Object.entries(obj)) {
-    if (!key.startsWith("_")) {
-      result[key] = deepRemoveUnderscoreProperties(value)
-    }
-  }
-  return result
 }
 
 export const DownloadDropdown = ({
