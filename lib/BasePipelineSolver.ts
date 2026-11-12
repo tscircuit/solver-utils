@@ -39,7 +39,7 @@ export abstract class BasePipelineSolver<TInput> extends BaseSolver {
   inputProblem: TInput
 
   /** Stores the outputs from each completed pipeline stage */
-  pipelineOutputs: Record<string, any> = {}
+  pipelineOutputs: Record<string, any> = Object.create(null)
 
   abstract pipelineDef: PipelineStep<any>[]
 
@@ -67,7 +67,16 @@ export abstract class BasePipelineSolver<TInput> extends BaseSolver {
         // Automatically store the solver's output
         const output = this.activeSubSolver.getOutput()
         if (output !== null) {
-          this.pipelineOutputs[pipelineStageDef.solverName] = output
+          Object.defineProperty(
+            this.pipelineOutputs,
+            pipelineStageDef.solverName,
+            {
+              value: output,
+              writable: true,
+              enumerable: true,
+              configurable: true,
+            },
+          )
         }
 
         pipelineStageDef.onSolved?.(this)
@@ -85,7 +94,9 @@ export abstract class BasePipelineSolver<TInput> extends BaseSolver {
     this.activeSubSolver = new pipelineStageDef.solverClass(
       ...constructorParams,
     )
-    ;(this as any)[pipelineStageDef.solverName] = this.activeSubSolver
+    if (pipelineStageDef.solverName !== "__proto__") {
+      ;(this as any)[pipelineStageDef.solverName] = this.activeSubSolver
+    }
     this.timeSpentOnStage[pipelineStageDef.solverName] = 0
     this.startTimeOfStage[pipelineStageDef.solverName] = performance.now()
     this.firstIterationOfStage[pipelineStageDef.solverName] = this.iterations
@@ -225,7 +236,9 @@ export abstract class BasePipelineSolver<TInput> extends BaseSolver {
    * Get the output from a specific pipeline stage
    */
   getStageOutput<T = any>(stageOutput: string): T | undefined {
-    return this.pipelineOutputs[stageOutput]
+    return Object.hasOwn(this.pipelineOutputs, stageOutput)
+      ? this.pipelineOutputs[stageOutput]
+      : undefined
   }
 
   /**
@@ -239,7 +252,7 @@ export abstract class BasePipelineSolver<TInput> extends BaseSolver {
    * Check if a step has completed and produced output
    */
   hasStageOutput(stageName: string): boolean {
-    return stageName in this.pipelineOutputs
+    return Object.hasOwn(this.pipelineOutputs, stageName)
   }
 
   /**
