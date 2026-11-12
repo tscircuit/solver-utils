@@ -49,7 +49,7 @@ export class ParentSolver extends BaseSolver {
     this.solved = true
   }
 
-  async solveAsync(runtime: SolverRuntimeExecutor): Promise<void> {
+  override async solveAsync(runtime: SolverRuntimeExecutor): Promise<void> {
     const pending = this.input.groups.map((values) =>
       runtime.executeAsync(SumSolver, { values }),
     )
@@ -113,7 +113,7 @@ export class HangingSolver extends BaseSolver {
     super()
   }
 
-  async solveAsync(): Promise<void> {
+  override async solveAsync(): Promise<void> {
     if (this.input.started) {
       const started = new Int32Array(this.input.started)
       Atomics.store(started, 0, 1)
@@ -126,7 +126,7 @@ export class HangingSolver extends BaseSolver {
 export class ExitSolver extends BaseSolver {
   static readonly solverName: string = "ExitSolver"
 
-  async solveAsync(): Promise<void> {
+  override async solveAsync(): Promise<void> {
     process.exit(0)
     await new Promise(() => {})
   }

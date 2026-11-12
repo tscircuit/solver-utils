@@ -1,7 +1,8 @@
-import React, { useEffect, useMemo, useReducer, useRef, useState } from "react"
+import React, { useEffect, useMemo, useRef, useState } from "react"
 import type { BaseSolver } from "../BaseSolver"
 import { GenericSolverStatsSummary } from "./GenericSolverStatsSummary"
 import { SolverBreadcrumbInputDownloader } from "./SolverBreadcrumbInputDownloader"
+import { useSolverActions } from "./useSolverActions"
 
 type RendererOption = "vector" | "canvas"
 
@@ -30,8 +31,14 @@ export const GenericSolverToolbar = ({
   onSolverCompleted,
   customRendererName,
 }: GenericSolverToolbarProps) => {
-  const [isAnimating, setIsAnimating] = useReducer((x) => !x, false)
-  const animationRef = useRef<NodeJS.Timeout | undefined>(undefined)
+  const [isAnimating, setIsAnimating] = useState(false)
+  const animatingRef = useRef(false)
+  const speedRef = useRef(animationSpeed)
+  speedRef.current = animationSpeed
+  const { isRunning, actionError, run } = useSolverActions(
+    solver,
+    triggerRender,
+  )
   const lastIterationInputRef = useRef<string | null>(null)
   const lastIterationStorageKey = "solver-debugger-last-iteration"
   const [openMenu, setOpenMenu] = useState<
@@ -52,72 +59,59 @@ export const GenericSolverToolbar = ({
     [],
   )
 
-  const startAnimation = () => {
-    const intervalMs = Math.max(1, animationSpeed)
-    const stepsPerTick = animationSpeed < 1 ? Math.round(1 / animationSpeed) : 1
-
-    animationRef.current = setInterval(() => {
-      if (solver.solved || solver.failed) {
-        if (animationRef.current) {
-          clearInterval(animationRef.current)
-          animationRef.current = undefined
-        }
-        setIsAnimating()
-        triggerRender()
-        if (onSolverCompleted && solver.solved) {
-          onSolverCompleted(solver)
-        }
-        return
-      }
-
-      for (let i = 0; i < stepsPerTick; i++) {
-        if (solver.solved || solver.failed) break
-        solver.step()
-      }
-
-      triggerRender()
-    }, intervalMs)
-  }
-
   const stopAnimation = () => {
-    if (animationRef.current) {
-      clearInterval(animationRef.current)
-      animationRef.current = undefined
-    }
+    animatingRef.current = false
   }
 
   const handleStep = () => {
-    if (!solver.solved && !solver.failed) {
-      solver.step()
-      triggerRender()
-    }
+    return run(async (step) => {
+      await step()
+    })
   }
 
   const handleSolve = () => {
-    if (!solver.solved && !solver.failed) {
-      if (onSolverStarted) {
-        onSolverStarted(solver)
+    return run(async (step) => {
+      onSolverStarted?.(solver)
+      const start = Date.now()
+      while (!solver.solved && !solver.failed) {
+        await step()
       }
-      solver.solve()
-      triggerRender()
-      if (onSolverCompleted) {
-        onSolverCompleted(solver)
-      }
-    }
+      solver.timeToSolve = Date.now() - start
+      onSolverCompleted?.(solver)
+    })
   }
 
   const handleAnimate = () => {
-    if (isAnimating) {
+    if (animatingRef.current) {
       stopAnimation()
-      setIsAnimating()
-    } else {
-      setIsAnimating()
-      startAnimation()
+      setIsAnimating(false)
+      return
     }
+    return run(async (step) => {
+      animatingRef.current = true
+      setIsAnimating(true)
+      try {
+        while (animatingRef.current && !solver.solved && !solver.failed) {
+          const speed = speedRef.current
+          await new Promise((resolve) =>
+            setTimeout(resolve, Math.max(1, speed)),
+          )
+          const stepsPerTick = speed < 1 ? Math.round(1 / speed) : 1
+          for (let i = 0; i < stepsPerTick; i++) {
+            if (!animatingRef.current || solver.solved || solver.failed) break
+            await step()
+          }
+        }
+        if (solver.solved) onSolverCompleted?.(solver)
+      } finally {
+        if (animatingRef.current) setIsAnimating(false)
+        stopAnimation()
+      }
+    })
   }
 
   const handleStepUntilIteration = () => {
-    if (solver.solved || solver.failed || isAnimating) return
+    if (solver.solved || solver.failed || isRunning) return
 
     if (
       lastIterationInputRef.current === null &&
@@ -147,19 +141,16 @@ export const GenericSolverToolbar = ({
       return
     }
 
-    while (
-      solver.iterations < targetIteration &&
-      !solver.solved &&
-      !solver.failed
-    ) {
-      solver.step()
-    }
-
-    triggerRender()
-
-    if (solver.solved && onSolverCompleted) {
-      onSolverCompleted(solver)
-    }
+    return run(async (step) => {
+      while (
+        solver.iterations < targetIteration &&
+        !solver.solved &&
+        !solver.failed
+      ) {
+        await step()
+      }
+      if (solver.solved) onSolverCompleted?.(solver)
+    })
   }
 
   // Cleanup animation on unmount or solver completion
@@ -168,20 +159,6 @@ export const GenericSolverToolbar = ({
       stopAnimation()
     }
   }, [])
-
-  useEffect(() => {
-    if ((solver.solved || solver.failed) && isAnimating) {
-      stopAnimation()
-      setIsAnimating()
-    }
-  }, [solver.solved, solver.failed, isAnimating])
-
-  useEffect(() => {
-    if (isAnimating) {
-      stopAnimation()
-      startAnimation()
-    }
-  }, [animationSpeed, isAnimating])
 
   useEffect(() => {
     if (typeof document === "undefined") return
@@ -321,7 +298,7 @@ export const GenericSolverToolbar = ({
       <div className="flex flex-wrap items-center gap-2">
         <button
           onClick={handleStep}
-          disabled={solver.solved || solver.failed || isAnimating}
+          disabled={solver.solved || solver.failed || isRunning}
           className="rounded bg-blue-500 px-3 py-1 text-sm text-white hover:bg-blue-600 disabled:bg-gray-300"
         >
           Step
@@ -329,7 +306,7 @@ export const GenericSolverToolbar = ({
 
         <button
           onClick={handleSolve}
-          disabled={solver.solved || solver.failed || isAnimating}
+          disabled={solver.solved || solver.failed || isRunning}
           className="rounded bg-green-500 px-3 py-1 text-sm text-white hover:bg-green-600 disabled:bg-gray-300"
         >
           Solve
@@ -337,7 +314,9 @@ export const GenericSolverToolbar = ({
 
         <button
           onClick={handleAnimate}
-          disabled={solver.solved || solver.failed}
+          disabled={
+            solver.solved || solver.failed || (isRunning && !isAnimating)
+          }
           className={`rounded px-3 py-1 text-sm text-white ${
             isAnimating
               ? "bg-red-500 hover:bg-red-600"
@@ -349,7 +328,7 @@ export const GenericSolverToolbar = ({
 
         <button
           onClick={handleStepUntilIteration}
-          disabled={solver.solved || solver.failed || isAnimating}
+          disabled={solver.solved || solver.failed || isRunning}
           className="rounded bg-orange-500 px-3 py-1 text-sm text-white hover:bg-orange-600 disabled:bg-gray-300"
         >
           Step Until Iteration
@@ -358,6 +337,8 @@ export const GenericSolverToolbar = ({
         <div className="text-sm text-gray-600">
           Iterations: {solver.iterations}
         </div>
+
+        {isRunning && <div role="status">Running</div>}
 
         {solver.timeToSolve !== undefined && (
           <div className="text-sm text-gray-600">
@@ -378,8 +359,10 @@ export const GenericSolverToolbar = ({
         )}
       </div>
 
-      {solver.error && (
-        <div className="text-sm text-red-600">Error: {solver.error}</div>
+      {(solver.error || actionError) && (
+        <div className="text-sm text-red-600">
+          Error: {solver.error || actionError}
+        </div>
       )}
     </div>
   )

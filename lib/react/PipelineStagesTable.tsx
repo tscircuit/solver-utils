@@ -1,10 +1,11 @@
 import React, { useState } from "react"
 import type { BasePipelineSolver } from "../BasePipelineSolver"
 import type { BaseSolver } from "../BaseSolver"
+import { SolverActionsContext, useSolverActions } from "./useSolverActions"
 
 interface PipelineStagesTableProps {
   solver: BaseSolver
-  onStepUntilPhase?: (phaseName: string) => void
+  onStepUntilPhase?: (phaseName: string) => void | Promise<void>
   onDownloadInput?: (solver: BaseSolver, stepName: string) => void
   /** Used for nested tables - removes title and adds indentation */
   isNested?: boolean
@@ -36,7 +37,12 @@ const isPipelineSolver = (
   )
 }
 
-type StageStatus = "Not Started" | "In Progress" | "Completed" | "Failed"
+type StageStatus =
+  | "Not Started"
+  | "In Progress"
+  | "Running"
+  | "Completed"
+  | "Failed"
 
 export interface StageInfo {
   index: number | null
@@ -177,6 +183,7 @@ const StatusBadge = ({ status }: { status: StageStatus }) => {
   const colors: Record<StageStatus, string> = {
     "Not Started": "text-blue-600",
     "In Progress": "text-yellow-600",
+    Running: "text-yellow-600",
     Completed: "text-green-600",
     Failed: "text-red-600",
   }
@@ -344,6 +351,8 @@ export const PipelineStagesTable = ({
   triggerRender,
 }: PipelineStagesTableProps) => {
   const [expandedStages, setExpandedStages] = useState<Set<string>>(new Set())
+  const actions = useSolverActions(solver, triggerRender)
+  const { isRunning, run } = actions
 
   const stages = getDisplayedStages(solver)
   const canControlStages = isPipelineSolver(solver)
@@ -365,7 +374,22 @@ export const PipelineStagesTable = ({
       return
     }
 
-    onStepUntilPhase?.(stageName)
+    return run(async (step) => {
+      if (onStepUntilPhase) {
+        await onStepUntilPhase(stageName)
+        return
+      }
+      const target = solver.pipelineDef.findIndex(
+        (s) => s.solverName === stageName,
+      )
+      while (
+        !solver.solved &&
+        !solver.failed &&
+        solver.currentPipelineStageIndex <= target
+      ) {
+        await step()
+      }
+    })
   }
 
   const handleDownloadInput = (stageInfo: StageInfo) => {
@@ -387,12 +411,12 @@ export const PipelineStagesTable = ({
       return
     }
 
-    if (!solver.solved && !solver.failed) {
+    return run(async (step) => {
       const initialActiveSubSolver = solver.activeSubSolver
 
       // Step until the activeSubSolver is defined and different from the last one
       while (!solver.solved && !solver.failed) {
-        solver.step()
+        await step()
         if (
           solver.activeSubSolver &&
           solver.activeSubSolver !== initialActiveSubSolver
@@ -400,8 +424,7 @@ export const PipelineStagesTable = ({
           break
         }
       }
-      triggerRender?.()
-    }
+    })
   }
 
   const handleNextSolver = () => {
@@ -409,24 +432,23 @@ export const PipelineStagesTable = ({
       return
     }
 
-    if (!solver.solved && !solver.failed) {
+    return run(async (step) => {
       const initialDeepestSolver = getDeepestActiveSubSolver(solver)
 
       // Step until the deepest activeSubSolver changes
       while (!solver.solved && !solver.failed) {
-        solver.step()
+        await step()
         const currentDeepestSolver = getDeepestActiveSubSolver(solver)
         if (currentDeepestSolver !== initialDeepestSolver) {
           break
         }
       }
-      triggerRender?.()
-    }
+    })
   }
 
   const indentPadding = indentLevel * 24
 
-  return (
+  const content = (
     <div className={isNested ? "" : "border-t border-gray-200"}>
       {!isNested && (
         <div className="px-4 py-2 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
@@ -436,14 +458,18 @@ export const PipelineStagesTable = ({
           <div className="flex gap-2">
             <button
               onClick={handleNextSolver}
-              disabled={!canControlStages || solver.solved || solver.failed}
+              disabled={
+                !canControlStages || solver.solved || solver.failed || isRunning
+              }
               className="bg-indigo-500 hover:bg-indigo-600 disabled:bg-gray-300 disabled:cursor-not-allowed cursor-pointer text-white px-3 py-1 rounded text-sm"
             >
               Next Solver
             </button>
             <button
               onClick={handleNextStage}
-              disabled={!canControlStages || solver.solved || solver.failed}
+              disabled={
+                !canControlStages || solver.solved || solver.failed || isRunning
+              }
               className="bg-purple-500 hover:bg-purple-600 disabled:bg-gray-300 disabled:cursor-not-allowed cursor-pointer text-white px-3 py-1 rounded text-sm"
             >
               Next Stage
@@ -530,6 +556,7 @@ export const PipelineStagesTable = ({
                             onClick={() => handlePlayClick(stage.name)}
                             disabled={
                               stage.status === "Completed" ||
+                              isRunning ||
                               solver.solved ||
                               solver.failed
                             }
@@ -558,7 +585,13 @@ export const PipelineStagesTable = ({
                       </div>
                     </td>
                     <td className="px-4 py-2">
-                      <StatusBadge status={stage.status} />
+                      <StatusBadge
+                        status={
+                          isRunning && stage.status === "In Progress"
+                            ? "Running"
+                            : stage.status
+                        }
+                      />
                     </td>
                     <td className="px-4 py-2 text-center text-gray-600">
                       {stage.firstIteration !== null
@@ -622,5 +655,10 @@ export const PipelineStagesTable = ({
         </table>
       </div>
     </div>
+  )
+  return (
+    <SolverActionsContext.Provider value={actions}>
+      {content}
+    </SolverActionsContext.Provider>
   )
 }

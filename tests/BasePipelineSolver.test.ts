@@ -375,3 +375,137 @@ test("BasePipelineSolver preview method", () => {
   // Should delegate to active sub-solver's preview
   expect(pipeline.activeSubSolver).toBeTruthy()
 })
+
+test("async runs preserve synchronous pipeline steps, callbacks, outputs and visuals", async () => {
+  const input = { targetValue: 20, initialValue: 0 }
+  const sync = new TestPipelineSolver(input)
+  const async = new TestPipelineSolver(input)
+  sync.solve()
+  await async.solveAsync()
+  expect(async.solved).toBe(true)
+  expect(async.iterations).toBe(sync.iterations)
+  expect(async.finalResult).toBe(sync.finalResult)
+  expect(async.progress).toBe(sync.progress)
+  expect(async.firstIterationOfStage).toEqual(sync.firstIterationOfStage)
+  expect(async.getAllOutputs()).toEqual(sync.getAllOutputs())
+  expect(async.visualize()).toEqual(sync.visualize())
+})
+
+test("async runs retain custom synchronous pipeline hooks", async () => {
+  class CustomPipeline extends TestPipelineSolver {
+    hookCalls = 0
+    override _step() {
+      this.hookCalls++
+      super._step()
+    }
+  }
+  const solver = new CustomPipeline({ targetValue: 20, initialValue: 0 })
+  await solver.solveAsync()
+  expect(solver.solved).toBe(true)
+  expect(solver.hookCalls).toBe(solver.iterations)
+})
+
+class ExternalSolver extends BaseSolver {
+  constructor(private result: Promise<number>) {
+    super()
+  }
+  value = 0
+  override async _stepAsync() {
+    this.value = await this.result
+    this.solved = true
+  }
+  override getOutput() {
+    return this.value
+  }
+}
+
+class AsyncPipeline extends BasePipelineSolver<Promise<number>> {
+  completed = 0
+  pipelineDef = [
+    definePipelineStep(
+      "external",
+      ExternalSolver,
+      (pipeline) => [pipeline.inputProblem],
+      {
+        onSolved: (pipeline) => {
+          ;(pipeline as AsyncPipeline).completed++
+        },
+      },
+    ),
+    definePipelineStep("sync", StepThreeSolver, (pipeline) => [
+      pipeline.getStageOutput<number>("external")!,
+    ]),
+  ]
+  override getOutput() {
+    return this.getAllOutputs()
+  }
+}
+
+test("pipeline awaits an external stage and captures timing/output only on completion", async () => {
+  const gate = Promise.withResolvers<number>()
+  const pipeline = new AsyncPipeline(gate.promise)
+  await pipeline.stepAsync() // Instantiate, as in the sync lifecycle.
+  const pending = pipeline.stepAsync()
+  expect(pipeline.getCurrentStageName()).toBe("external")
+  expect(pipeline.hasStageOutput("external")).toBe(false)
+  expect(pipeline.endTimeOfStage.external).toBeUndefined()
+  await expect(pipeline.stepAsync()).rejects.toThrow("step in flight")
+  gate.resolve(100)
+  await pending
+  expect(pipeline.getStageOutput("external")).toBe(100)
+  expect(pipeline.completed).toBe(1)
+  expect(pipeline.timeSpentOnStage.external).toBeGreaterThanOrEqual(0)
+  expect(pipeline.endTimeOfStage.external).toBeGreaterThanOrEqual(
+    pipeline.startTimeOfStage.external!,
+  )
+  await pipeline.solveAsync()
+  expect(pipeline.solved).toBe(true)
+  expect(pipeline.getSolver("sync")!.iterations).toBe(1)
+})
+
+test("solveUntilStageAsync matches the sync stop-before-stage and case-insensitive lookup", async () => {
+  const pipeline = new AsyncPipeline(Promise.resolve(100))
+  await pipeline.solveUntilStageAsync("SyNc")
+  expect(pipeline.getCurrentStageName()).toBe("sync")
+  expect(pipeline.getSolver("sync")).toBeUndefined()
+  expect(pipeline.getStageOutput("external")).toBe(100)
+  await pipeline.solveUntilStageAsync("missing")
+  expect(pipeline.solved).toBe(true)
+  await pipeline.solveUntilStageAsync("external") // No loop after completion.
+})
+
+test("sync pipeline calls reaching an async stage fail explicitly, far before MAX_ITERATIONS", () => {
+  const pipeline = new AsyncPipeline(Promise.resolve(100))
+  expect(() => pipeline.solve()).toThrow("requires stepAsync() or solveAsync()")
+  expect(pipeline.failed).toBe(true)
+  expect(pipeline.iterations).toBe(2)
+  expect(pipeline.activeSubSolver!.iterations).toBe(0)
+})
+
+test("nested pipelines await the same stage definitions and propagate rejection", async () => {
+  class OuterPipeline extends BasePipelineSolver<Promise<number>> {
+    pipelineDef = [
+      definePipelineStep("inner", AsyncPipeline, (pipeline) => [
+        pipeline.inputProblem,
+      ]),
+    ]
+  }
+  const pipeline = new OuterPipeline(Promise.resolve(100))
+  await pipeline.solveAsync()
+  expect(pipeline.solved).toBe(true)
+  expect(pipeline.getStageOutput("inner")).toEqual({ external: 100 })
+  expect(pipeline.getSolver<AsyncPipeline>("inner")!.completed).toBe(1)
+
+  const gate = Promise.withResolvers<number>()
+  const failing = new OuterPipeline(gate.promise)
+  const pending = failing.solveAsync()
+  gate.reject(new Error("ngspice rejected"))
+  await expect(pending).rejects.toThrow("ngspice rejected")
+  const inner = failing.getSolver<AsyncPipeline>("inner")!
+  expect(failing.failed).toBe(true)
+  expect(inner.failed).toBe(true)
+  expect(inner.activeSubSolver!.failed).toBe(true)
+  expect(failing.error).toContain("ngspice rejected")
+  expect(failing.getAllOutputs()).toEqual({})
+  expect(inner.getAllOutputs()).toEqual({})
+})

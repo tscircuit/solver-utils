@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useReducer, useState } from "react"
 import type { BaseSolver } from "../BaseSolver"
-import type { BasePipelineSolver } from "../BasePipelineSolver"
 import {
   InteractiveGraphics,
   InteractiveGraphicsCanvas,
@@ -9,6 +8,7 @@ import { GenericSolverToolbar } from "./GenericSolverToolbar"
 import { PipelineStagesTable } from "./PipelineStagesTable"
 import { SimpleGraphicsSVG } from "./SimpleGraphicsSVG"
 import type { GraphicsObject } from "graphics-debug"
+import { SolverActionsContext, useSolverActions } from "./useSolverActions"
 
 class ErrorBoundary extends React.Component<
   { fallback: React.ReactNode; children: React.ReactNode },
@@ -72,6 +72,7 @@ export const GenericSolverDebugger = ({
   })
   const [currentAnimationSpeed, setCurrentAnimationSpeed] =
     useState(animationSpeed)
+  const actions = useSolverActions(solver, incRenderCount)
 
   const visualization = useMemo(() => {
     if (customRenderer) return {}
@@ -111,24 +112,6 @@ export const GenericSolverDebugger = ({
     setCurrentAnimationSpeed(animationSpeed)
   }, [animationSpeed])
 
-  const handleStepUntilPhase = (phaseName: string) => {
-    const pipelineSolver = solver as BasePipelineSolver<any>
-    if (!solver.solved && !solver.failed) {
-      // Step until the specified phase is completed
-      while (
-        !solver.solved &&
-        !solver.failed &&
-        pipelineSolver.currentPipelineStageIndex <=
-          pipelineSolver.pipelineDef.findIndex(
-            (s) => s.solverName === phaseName,
-          )
-      ) {
-        solver.step()
-      }
-      incRenderCount()
-    }
-  }
-
   const handleDownloadVisualization = () => {
     const visualizationJson = JSON.stringify(
       customRenderer ? customRenderer.getDownload(solver) : visualization,
@@ -155,7 +138,7 @@ export const GenericSolverDebugger = ({
     }
   }
 
-  return (
+  const content = (
     <div>
       <GenericSolverToolbar
         solver={solver}
@@ -186,11 +169,12 @@ export const GenericSolverDebugger = ({
           )}
         </ErrorBoundary>
       )}
-      <PipelineStagesTable
-        solver={solver}
-        onStepUntilPhase={handleStepUntilPhase}
-        triggerRender={incRenderCount}
-      />
+      <PipelineStagesTable solver={solver} triggerRender={incRenderCount} />
     </div>
+  )
+  return (
+    <SolverActionsContext.Provider value={actions}>
+      {content}
+    </SolverActionsContext.Provider>
   )
 }
