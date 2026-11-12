@@ -1,7 +1,14 @@
-import { describe, expect, test } from "bun:test"
+import { afterEach, describe, expect, test } from "bun:test"
+import { act, createElement } from "react"
 import { BasePipelineSolver } from "../lib/BasePipelineSolver"
 import { BaseSolver } from "../lib/BaseSolver"
-import { getDisplayedStages } from "../lib/react/PipelineStagesTable"
+import {
+  getDisplayedStages,
+  PipelineStagesTable,
+} from "../lib/react/PipelineStagesTable"
+import { cleanupReactRoot, mount, waitFor } from "./fixtures/reactTestRoot"
+
+afterEach(cleanupReactRoot)
 
 class LeafSolver extends BaseSolver {
   constructor(
@@ -129,4 +136,74 @@ describe("getDisplayedStages", () => {
       getDisplayedStages(new NestedSolver(failedSubSolver))[0]?.status,
     ).toBe("Failed")
   })
+})
+
+test("Next Stage awaits the current stage before instantiating the next", async () => {
+  const gate = Promise.withResolvers<void>()
+  class External extends BaseSolver {
+    override async _stepAsync() {
+      await gate.promise
+      this.solved = true
+    }
+  }
+  const pipeline = new ExamplePipelineSolver({})
+  pipeline.pipelineDef[0]!.solverClass = External
+  const ui = await mount(
+    createElement(PipelineStagesTable, { solver: pipeline }),
+  )
+  await ui.click("Next Stage") // Instantiate the first stage, as before.
+  expect(pipeline.activeSubSolver).toBeInstanceOf(External)
+  await ui.click("Next Stage")
+  expect(ui.button("Next Solver").disabled).toBe(true)
+  expect(ui.container.textContent).toContain("Running")
+  await act(async () => {
+    gate.resolve()
+    await gate.promise
+  })
+  await waitFor(() => !ui.button("Next Stage").disabled)
+  expect(pipeline.activeSubSolver).toBeInstanceOf(SecondStageSolver)
+  expect(pipeline.currentPipelineStageIndex).toBe(1)
+})
+
+test("nested stage play advances through the root pipeline and updates stage bookkeeping", async () => {
+  class Done extends BaseSolver {
+    override async _stepAsync() {
+      await Promise.resolve()
+      this.solved = true
+    }
+  }
+  class Inner extends BasePipelineSolver<undefined> {
+    pipelineDef = [
+      { solverName: "leaf", solverClass: Done, getConstructorParams: () => [] },
+    ]
+  }
+  class Outer extends BasePipelineSolver<undefined> {
+    pipelineDef = [
+      {
+        solverName: "inner",
+        solverClass: Inner,
+        getConstructorParams: () => [undefined],
+      },
+    ]
+  }
+  const solver = new Outer(undefined)
+  await solver.stepAsync()
+  const ui = await mount(createElement(PipelineStagesTable, { solver }))
+  const expand = ui.container.querySelector('button[title="Expand"]')!
+  await act(() => {
+    ;(expand as unknown as HTMLButtonElement).click()
+  })
+  const play = ui.container.querySelector(
+    'button[title="Step until leaf completes"]',
+  )!
+  await act(() => {
+    ;(play as unknown as HTMLButtonElement).click()
+  })
+  await waitFor(
+    () => solver.getSolver<Inner>("inner")!.currentPipelineStageIndex === 1,
+  )
+  expect(solver.iterations).toBe(3)
+  expect(
+    solver.getSolver<Inner>("inner")!.timeSpentOnStage.leaf,
+  ).toBeGreaterThanOrEqual(0)
 })

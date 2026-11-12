@@ -1,4 +1,5 @@
 import type { GraphicsObject } from "graphics-debug"
+import type { SolverRuntimeExecutor } from "./runtime/types"
 
 /**
  * A base class for solvers implementing the standard solve() interface.
@@ -23,6 +24,7 @@ export class BaseSolver {
   timeToSolve?: number
   stats: Record<string, any> = {}
   _setupDone = false
+  private stepping = false
 
   getSolverName(): string {
     return this.constructor.name
@@ -39,19 +41,52 @@ export class BaseSolver {
 
   /** DO NOT OVERRIDE! Override _step() instead */
   step() {
+    this.assertNoStepInFlight()
+    if (!this.solved && !this.failed) this.assertCanStepSynchronously()
+    this.stepping = true
+    try {
+      if (!this.beginStep()) return
+      try {
+        this._step()
+      } catch (e) {
+        this.recordStepError(e)
+        throw e
+      }
+      this.finishStep()
+    } finally {
+      this.stepping = false
+    }
+  }
+
+  protected assertCanStepSynchronously() {
+    if (this._stepAsync !== BaseSolver.prototype._stepAsync) {
+      throw new Error(
+        `${this.getSolverName()} requires stepAsync() or solveAsync()`,
+      )
+    }
+  }
+
+  private assertNoStepInFlight() {
+    if (this.stepping) {
+      throw new Error(`${this.getSolverName()} already has a step in flight`)
+    }
+  }
+
+  private beginStep(): boolean {
     if (!this._setupDone) {
       this.setup()
     }
-    if (this.solved) return
-    if (this.failed) return
+    if (this.solved || this.failed) return false
     this.iterations++
-    try {
-      this._step()
-    } catch (e) {
-      this.error = `${this.getSolverName()} error: ${e}`
-      this.failed = true
-      throw e
-    }
+    return true
+  }
+
+  private recordStepError(e: unknown) {
+    this.error = `${this.getSolverName()} error: ${e}`
+    this.failed = true
+  }
+
+  private finishStep() {
     if (!this.solved && this.iterations >= this.MAX_ITERATIONS) {
       this.tryFinalAcceptance()
     }
@@ -68,6 +103,29 @@ export class BaseSolver {
   /** Override this method to implement solver logic */
   _step() {}
 
+  /** Override for a step that awaits external work. Sync solvers need no change. */
+  async _stepAsync(): Promise<void> {
+    this._step()
+  }
+
+  /** Perform one step; overlapping calls reject without advancing or failing it. */
+  async stepAsync(): Promise<void> {
+    this.assertNoStepInFlight()
+    this.stepping = true
+    try {
+      if (!this.beginStep()) return
+      try {
+        await this._stepAsync()
+      } catch (e) {
+        this.recordStepError(e)
+        throw e
+      }
+      this.finishStep()
+    } finally {
+      this.stepping = false
+    }
+  }
+
   getConstructorParams() {
     throw new Error("getConstructorParams not implemented")
   }
@@ -82,12 +140,29 @@ export class BaseSolver {
   }
 
   solve() {
+    this.assertNoStepInFlight()
     const startTime = Date.now()
     while (!this.solved && !this.failed) {
       this.step()
     }
     const endTime = Date.now()
     this.timeToSolve = endTime - startTime
+  }
+
+  /** Await steps, periodically yielding so timers and debugger rendering can run. */
+  async solveAsync(_runtime?: SolverRuntimeExecutor): Promise<void> {
+    // Retain the existing SolverRuntime override signature; steps need no executor.
+    this.assertNoStepInFlight()
+    const startTime = Date.now()
+    let lastYield = startTime
+    while (!this.solved && !this.failed) {
+      await this.stepAsync()
+      if (Date.now() - lastYield >= 16) {
+        await new Promise((resolve) => setTimeout(resolve, 0))
+        lastYield = Date.now()
+      }
+    }
+    this.timeToSolve = Date.now() - startTime
   }
 
   visualize(): GraphicsObject {

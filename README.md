@@ -270,6 +270,46 @@ class MySolver extends BaseSolver {
 - On max-iteration exhaustion, `tryFinalAcceptance()` is called before failing.
 - You can override `tryFinalAcceptance()` for “best effort” acceptance logic.
 
+### Awaiting external work
+
+Override `_stepAsync()` when a step needs to wait for a process, network request,
+or WASM engine. Synchronous solvers can use the async entrypoints without changes;
+the default `_stepAsync()` calls `_step()`.
+
+```ts
+class SpiceSolver extends BaseSolver {
+  result?: string
+
+  constructor(private runSpice: () => Promise<string>) {
+    super()
+  }
+
+  override async _stepAsync() {
+    this.result = await this.runSpice()
+    this.solved = true
+  }
+
+  override getOutput() {
+    return this.result
+  }
+  override getConstructorParams() {
+    return []
+  }
+}
+
+const solver = new SpiceSolver(runSpice)
+await solver.stepAsync() // one awaited unit, or await solver.solveAsync()
+```
+
+Exactly one step may run on an instance at a time. Overlapping calls reject
+immediately, without queuing extra work or failing the pending step. `step()` and
+`solve()` throw a clear error on an async hook or while a step is pending. Hook
+exceptions/rejections set `failed` and `error` and propagate to the caller; later
+steps do no work. Setup, iteration limits, final acceptance, progress, and solve
+timing follow the synchronous lifecycle. `solveAsync()` periodically yields to
+timers so long runs remain responsive. Its optional runtime argument preserves
+the existing `solveAsync(runtime)` override contract for worker-based solvers.
+
 ## BasePipelineSolver Guide
 
 `BasePipelineSolver<TInput>` is a `BaseSolver` that runs multiple solver stages in sequence.
@@ -300,6 +340,7 @@ definePipelineStep(
 ### Useful methods
 
 - `solveUntilStage(stageName)`
+- `solveUntilStageAsync(stageName)`
 - `getCurrentStageName()`
 - `getStageProgress()`
 - `getStageStats()`
@@ -307,6 +348,31 @@ definePipelineStep(
 - `getAllOutputs()`
 - `hasStageOutput(stageName)`
 - `getSolver<T>(stageName)`
+
+### Async stages
+
+Use the same `pipelineDef` for synchronous and async stages, including nested
+pipelines. Outputs, `onSolved` callbacks, stage timings and iterations are recorded
+after each awaited stage finishes.
+
+```ts
+class SpicePipeline extends BasePipelineSolver<() => Promise<string>> {
+  pipelineDef = [
+    definePipelineStep("spice", SpiceSolver, (pipeline) => [
+      pipeline.inputProblem,
+    ]),
+  ]
+}
+
+const pipeline = new SpicePipeline(runSpice)
+await pipeline.solveAsync()
+console.log(pipeline.getStageOutput("spice"))
+```
+
+`solveUntilStageAsync(name)` matches `solveUntilStage(name)`: it stops **before**
+the named stage, with case-insensitive lookup. The debugger's stage play button
+instead runs through that stage's completion. A synchronous run that reaches an
+async stage throws explicitly and marks the enclosing pipeline failed.
 
 ### Initial and final visuals
 
@@ -341,6 +407,22 @@ import { GenericSolverDebugger } from "@tscircuit/solver-utils/react"
 - Live iteration count, elapsed solve time, and solved/failed badges.
 - Pipeline stage table (for pipeline solvers), including nested pipelines.
 - Breadcrumb chain with per-solver download menus.
+
+### Async controls
+
+Step, Solve, Animate, Step Until Iteration, Next Stage and Next Solver await
+`stepAsync()` automatically. No debugger configuration is needed:
+
+```tsx
+;<GenericSolverDebugger solver={new SpicePipeline(runSpice)} />
+```
+
+The debugger shows **Running**, renders before and after awaited work, and disables
+other execution controls while an action is pending. Animation waits for each tick
+to settle before scheduling another. Stop prevents further steps after the current
+request settles; it does not cancel external work. Rejections appear in the error
+display. Existing synchronous solvers use the same controls and keep their results
+and iteration behavior.
 
 ### Download features
 
