@@ -3,6 +3,26 @@ import React, { useEffect, useMemo, useRef, useState } from "react"
 const MAX_VISIBLE_STATS = 2
 const VALUE_WIDTH_CH = 10
 
+const stringifyStatsJson = (stats: Record<string, unknown>): string => {
+  const ancestors: object[] = []
+  return JSON.stringify(
+    stats,
+    function (this: object, _key, value: unknown) {
+      if (typeof value === "bigint") return String(value)
+      if (value === null || typeof value !== "object") return value
+
+      // Only ancestors form cycles; shared objects in sibling branches do not.
+      while (ancestors.length > 0 && ancestors.at(-1) !== this) {
+        ancestors.pop()
+      }
+      if (ancestors.includes(value)) return "[Circular]"
+      ancestors.push(value)
+      return value
+    },
+    2,
+  )
+}
+
 export const stringifyStatValue = (value: unknown): string => {
   if (typeof value === "number") {
     if (!Number.isFinite(value)) {
@@ -76,7 +96,7 @@ export const GenericSolverStatsSummary = ({
   const availableKeys = useMemo(() => Object.keys(stats), [stats])
   const storageKey = `solver-debugger-selected-stats:${solverName}`
   const pickerRef = useRef<HTMLDivElement | null>(null)
-  const fullStatsJson = useMemo(() => JSON.stringify(stats, null, 2), [stats])
+  const fullStatsJson = useMemo(() => stringifyStatsJson(stats), [stats])
   const [selectedKeys, setSelectedKeys] = useState<string[]>(() =>
     getDefaultSelectedStats(availableKeys),
   )
