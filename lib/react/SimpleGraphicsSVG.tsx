@@ -63,6 +63,8 @@ export function SimpleGraphicsSVG({ graphics }: { graphics: GraphicsObject }) {
   const vbY = minY - pad
   const vbW = Math.max(1, maxX - minX + 2 * pad)
   const vbH = Math.max(1, maxY - minY + 2 * pad)
+  const cartesian = graphics.coordinateSystem !== "screen"
+  const projectY = (y: number) => (cartesian ? minY + maxY - y : y)
 
   return (
     <svg
@@ -75,7 +77,7 @@ export function SimpleGraphicsSVG({ graphics }: { graphics: GraphicsObject }) {
         <rect
           key={`rect-${i}`}
           x={r.x ?? 0}
-          y={r.y ?? 0}
+          y={cartesian ? projectY((r.y ?? 0) + (r.height ?? 0)) : (r.y ?? 0)}
           width={r.width ?? 0}
           height={r.height ?? 0}
           fill="none"
@@ -90,7 +92,7 @@ export function SimpleGraphicsSVG({ graphics }: { graphics: GraphicsObject }) {
           stroke={l.strokeColor ?? "black"}
           strokeWidth={l.strokeWidth ?? 1}
           points={(l.points ?? [])
-            .map((p: any) => `${p.x ?? 0},${p.y ?? 0}`)
+            .map((p: any) => `${p.x ?? 0},${projectY(p.y ?? 0)}`)
             .join(" ")}
         />
       ))}
@@ -98,7 +100,7 @@ export function SimpleGraphicsSVG({ graphics }: { graphics: GraphicsObject }) {
         <circle
           key={`circle-${i}`}
           cx={c.x ?? 0}
-          cy={c.y ?? 0}
+          cy={projectY(c.y ?? 0)}
           r={c.radius ?? 1.5}
           fill={c.fillColor ?? "none"}
           stroke={c.strokeColor ?? "black"}
@@ -109,7 +111,7 @@ export function SimpleGraphicsSVG({ graphics }: { graphics: GraphicsObject }) {
         <circle
           key={`point-${i}`}
           cx={p.x ?? 0}
-          cy={p.y ?? 0}
+          cy={projectY(p.y ?? 0)}
           r={p.radius ?? 1.5}
           fill={p.color ?? "black"}
         />
@@ -118,7 +120,7 @@ export function SimpleGraphicsSVG({ graphics }: { graphics: GraphicsObject }) {
         <text
           key={`text-${i}`}
           x={t.x ?? 0}
-          y={t.y ?? 0}
+          y={projectY(t.y ?? 0)}
           fontSize={t.fontSize ?? 10}
           fill={t.color ?? "black"}
         >
